@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JobCopilot — Dashboard</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Navigation Bar -->
+  <nav class="navbar" role="navigation" aria-label="Main navigation">
+    <div class="navbar__brand">🚀 JobCopilot</div>
+    <ul class="navbar__nav">
+      <li><a href="index.html" class="navbar__link navbar__link--active" aria-current="page">Dashboard</a></li>
+      <li><a href="jobs.html" class="navbar__link">Jobs</a></li>
+      <li><a href="saved.html" class="navbar__link">Saved</a></li>
+      <li><a href="watchlist.html" class="navbar__link">Watchlist</a></li>
+      <li><a href="settings.html" class="navbar__link">Settings</a></li>
+    </ul>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <header class="page-header">
+      <h1 class="page-header__title">Dashboard</h1>
+      <p class="page-header__subtitle">Your job search at a glance</p>
+    </header>
+
+    <!-- Metric Cards Section -->
+    <section aria-label="Summary metrics">
+      <div id="metrics-container" class="grid grid--metrics">
+        <!-- Skeleton loaders shown while loading -->
+        <div class="skeleton skeleton--metric"></div>
+        <div class="skeleton skeleton--metric"></div>
+        <div class="skeleton skeleton--metric"></div>
+        <div class="skeleton skeleton--metric"></div>
+        <div class="skeleton skeleton--metric"></div>
+      </div>
+    </section>
+
+    <!-- Recent Jobs Table -->
+    <section class="mt-xl" aria-label="Recent jobs">
+      <h2 class="page-header__title" style="font-size: var(--font-size-xl); margin-bottom: var(--space-md);">Recent Jobs</h2>
+      <div id="recent-jobs-container">
+        <!-- Skeleton loaders for table -->
+        <div class="skeleton skeleton--row"></div>
+        <div class="skeleton skeleton--row"></div>
+        <div class="skeleton skeleton--row"></div>
+        <div class="skeleton skeleton--row"></div>
+        <div class="skeleton skeleton--row"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/components.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>

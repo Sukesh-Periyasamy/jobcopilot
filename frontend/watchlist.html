@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JobCopilot — Watchlist</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Navigation Bar -->
+  <nav class="navbar" role="navigation" aria-label="Main navigation">
+    <div class="navbar__brand">🚀 JobCopilot</div>
+    <ul class="navbar__nav">
+      <li><a href="index.html" class="navbar__link">Dashboard</a></li>
+      <li><a href="jobs.html" class="navbar__link">Jobs</a></li>
+      <li><a href="saved.html" class="navbar__link">Saved</a></li>
+      <li><a href="watchlist.html" class="navbar__link navbar__link--active" aria-current="page">Watchlist</a></li>
+      <li><a href="settings.html" class="navbar__link">Settings</a></li>
+    </ul>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <header class="page-header">
+      <h1 class="page-header__title">Company Watchlist</h1>
+      <p class="page-header__subtitle">Track companies you're interested in. Get alerts when they post new jobs.</p>
+    </header>
+
+    <!-- Add Company Form -->
+    <section class="card mb-lg" aria-label="Add company">
+      <div class="flex items-center gap-sm" style="flex-wrap: wrap;">
+        <div class="form-group" style="flex: 1; min-width: 200px;">
+          <label class="form-label" for="input-company-name">Company Name</label>
+          <input type="text" id="input-company-name" class="form-input" placeholder="e.g. Siemens Healthineers" maxlength="100">
+        </div>
+        <div class="form-group" style="justify-content: flex-end; align-self: flex-end;">
+          <button id="btn-add-company" class="btn btn--primary">Add Company</button>
+        </div>
+      </div>
+      <p id="watchlist-status" class="text-secondary mt-sm" style="font-size: var(--font-size-xs);"></p>
+    </section>
+
+    <!-- Watchlist -->
+    <section aria-label="Watchlist companies">
+      <div id="watchlist-container">
+        <div class="skeleton skeleton--row"></div>
+        <div class="skeleton skeleton--row"></div>
+        <div class="skeleton skeleton--row"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/components.js"></script>
+  <script src="js/watchlist.js"></script>
+</body>
+</html>

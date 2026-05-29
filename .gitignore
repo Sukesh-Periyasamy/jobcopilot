@@ -1,0 +1,33 @@
+# ─── Environment & Secrets ───
+.env
+
+# ─── Data & Logs ───
+data/
+*.log
+
+# ─── Python ───
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# ─── Testing ───
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ─── IDEs ───
+.vscode/
+.idea/
+
+# ─── OS Files ───
+.DS_Store
+Thumbs.db
+
+# ─── Node (if any tooling added later) ───
+node_modules/

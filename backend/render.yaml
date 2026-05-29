@@ -1,0 +1,76 @@
+# Render Blueprint — JobCopilot Engine
+# https://render.com/docs/blueprint-spec
+
+services:
+  # Web Service: FastAPI REST API
+  - type: web
+    name: jobcopilot-api
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: MONGODB_URI
+        sync: false  # Set manually in Render dashboard
+      - key: DATABASE_NAME
+        value: jobcopilot
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false  # Set manually in Render dashboard (optional)
+      - key: TELEGRAM_CHAT_ID
+        sync: false  # Set manually in Render dashboard (optional)
+      - key: SEARCH_TERMS
+        value: "Biomedical Engineer,Medical Device Engineer,Research Engineer,Research Associate,Healthcare Technology,Healthcare AI,Signal Processing Engineer,Embedded Systems Engineer,IoT Engineer,Python Developer,Backend Developer,R&D Engineer,Clinical Data Analyst,Biomedical Research,Medical Technology,Research Scientist"
+      - key: LOCATIONS
+        value: "India,Remote,Bangalore,Hyderabad,Chennai,Pune,Mumbai,Delhi,Noida,Gurugram,Ahmedabad,Kolkata"
+      - key: JOB_SOURCES
+        value: "linkedin,indeed,naukri,google"
+      - key: SCHEDULE_TIME
+        value: "08:00"
+      - key: PYTHON_VERSION
+        value: "3.11.6"
+
+  # Cron Job: Daily scraper (08:00 IST = 02:30 UTC, using 02:00 for simplicity)
+  - type: cron
+    name: daily-scraper
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    schedule: "0 2 * * *"
+    startCommand: python daily_scraper.py
+    envVars:
+      - key: MONGODB_URI
+        sync: false  # Set manually in Render dashboard
+      - key: DATABASE_NAME
+        value: jobcopilot
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false  # Set manually in Render dashboard (optional)
+      - key: TELEGRAM_CHAT_ID
+        sync: false  # Set manually in Render dashboard (optional)
+      - key: SEARCH_TERMS
+        value: "Biomedical Engineer,Medical Device Engineer,Research Engineer,Research Associate,Healthcare Technology,Healthcare AI,Signal Processing Engineer,Embedded Systems Engineer,IoT Engineer,Python Developer,Backend Developer,R&D Engineer,Clinical Data Analyst,Biomedical Research,Medical Technology,Research Scientist"
+      - key: LOCATIONS
+        value: "India,Remote,Bangalore,Hyderabad,Chennai,Pune,Mumbai,Delhi,Noida,Gurugram,Ahmedabad,Kolkata"
+      - key: JOB_SOURCES
+        value: "linkedin,indeed,naukri,google"
+      - key: SCHEDULE_TIME
+        value: "08:00"
+      - key: PYTHON_VERSION
+        value: "3.11.6"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Environment Variables to set in Render Dashboard:
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# REQUIRED:
+#   MONGODB_URI        — MongoDB Atlas connection string
+#                        Example: mongodb+srv://user:pass@cluster.mongodb.net/?retryWrites=true&w=majority
+#
+# OPTIONAL (notifications disabled if not set):
+#   TELEGRAM_BOT_TOKEN — Telegram Bot API token from @BotFather
+#   TELEGRAM_CHAT_ID   — Telegram chat ID for notifications
+#
+# OPTIONAL (have sensible defaults):
+#   DATABASE_NAME      — MongoDB database name (default: "jobcopilot")
+#   SEARCH_TERMS       — Comma-separated job search terms
+#   LOCATIONS          — Comma-separated locations to search
+#   JOB_SOURCES        — Comma-separated sources: linkedin,indeed,naukri,google
+#   SCHEDULE_TIME      — HH:MM 24-hour format (default: "08:00")
+# ─────────────────────────────────────────────────────────────────────────────

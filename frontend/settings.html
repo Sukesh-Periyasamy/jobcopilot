@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JobCopilot — Settings</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Navigation Bar -->
+  <nav class="navbar" role="navigation" aria-label="Main navigation">
+    <div class="navbar__brand">🚀 JobCopilot</div>
+    <ul class="navbar__nav">
+      <li><a href="index.html" class="navbar__link">Dashboard</a></li>
+      <li><a href="jobs.html" class="navbar__link">Jobs</a></li>
+      <li><a href="saved.html" class="navbar__link">Saved</a></li>
+      <li><a href="watchlist.html" class="navbar__link">Watchlist</a></li>
+      <li><a href="settings.html" class="navbar__link navbar__link--active" aria-current="page">Settings</a></li>
+    </ul>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <header class="page-header">
+      <h1 class="page-header__title">Settings</h1>
+      <p class="page-header__subtitle">Current system configuration (read-only)</p>
+    </header>
+
+    <section aria-label="Configuration settings">
+      <div id="settings-container">
+        <div class="skeleton skeleton--card"></div>
+        <div class="skeleton skeleton--card" style="margin-top: var(--space-md);"></div>
+        <div class="skeleton skeleton--card" style="margin-top: var(--space-md);"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/components.js"></script>
+  <script src="js/settings.js"></script>
+</body>
+</html>

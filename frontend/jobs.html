@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JobCopilot — Jobs Feed</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Navigation Bar -->
+  <nav class="navbar" role="navigation" aria-label="Main navigation">
+    <div class="navbar__brand">🚀 JobCopilot</div>
+    <ul class="navbar__nav">
+      <li><a href="index.html" class="navbar__link">Dashboard</a></li>
+      <li><a href="jobs.html" class="navbar__link navbar__link--active" aria-current="page">Jobs</a></li>
+      <li><a href="saved.html" class="navbar__link">Saved</a></li>
+      <li><a href="watchlist.html" class="navbar__link">Watchlist</a></li>
+      <li><a href="settings.html" class="navbar__link">Settings</a></li>
+    </ul>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <header class="page-header">
+      <h1 class="page-header__title">Jobs Feed</h1>
+      <p class="page-header__subtitle">Browse and filter all scraped jobs</p>
+    </header>
+
+    <!-- Filter Controls -->
+    <section class="card mb-lg" aria-label="Filters">
+      <div class="filter-row">
+        <div class="form-group">
+          <label class="form-label" for="filter-source">Source</label>
+          <select id="filter-source" class="form-input form-input--select">
+            <option value="">All Sources</option>
+            <option value="linkedin">LinkedIn</option>
+            <option value="indeed">Indeed</option>
+            <option value="naukri">Naukri</option>
+            <option value="google">Google</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="filter-location">Location</label>
+          <input type="text" id="filter-location" class="form-input" placeholder="e.g. Bangalore">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="filter-company">Company</label>
+          <input type="text" id="filter-company" class="form-input" placeholder="e.g. Google">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="filter-keyword">Keyword</label>
+          <input type="text" id="filter-keyword" class="form-input" placeholder="e.g. Python">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="filter-job-type">Job Type</label>
+          <select id="filter-job-type" class="form-input form-input--select">
+            <option value="">All Types</option>
+            <option value="full-time">Full-time</option>
+            <option value="part-time">Part-time</option>
+            <option value="internship">Internship</option>
+            <option value="contract">Contract</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="filter-date-from">From</label>
+          <input type="date" id="filter-date-from" class="form-input">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="filter-date-to">To</label>
+          <input type="date" id="filter-date-to" class="form-input">
+        </div>
+        <div class="form-group" style="justify-content: flex-end;">
+          <button id="btn-apply-filters" class="btn btn--primary">Apply Filters</button>
+        </div>
+        <div class="form-group" style="justify-content: flex-end;">
+          <button id="btn-clear-filters" class="btn btn--secondary">Clear</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Jobs Table -->
+    <section aria-label="Jobs list">
+      <div id="jobs-table-container">
+        <div class="skeleton skeleton--row"></div>
+        <div class="skeleton skeleton--row"></div>
+        <div class="skeleton skeleton--row"></div>
+        <div class="skeleton skeleton--row"></div>
+        <div class="skeleton skeleton--row"></div>
+        <div class="skeleton skeleton--row"></div>
+      </div>
+    </section>
+
+    <!-- Pagination -->
+    <div id="pagination-container"></div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/components.js"></script>
+  <script src="js/jobs.js"></script>
+</body>
+</html>
