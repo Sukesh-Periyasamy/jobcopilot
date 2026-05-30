@@ -8,6 +8,7 @@ requests
 hypothesis
 pytest
 pytest-asyncio
-jobhive-py[parquet]
+jobhive-py
 openpyxl
-pyarrow
+pyarrow>=18.0.0
+pandas

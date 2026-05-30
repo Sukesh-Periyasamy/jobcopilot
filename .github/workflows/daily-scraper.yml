@@ -27,6 +27,12 @@ jobs:
           cd backend
           pip install -r requirements.txt
 
+      - name: Verify Dependencies
+        run: |
+          python -c "import pyarrow; print(f'pyarrow {pyarrow.__version__} OK')"
+          python -c "import pandas; print(f'pandas {pandas.__version__} OK')"
+          python -c "import requests; print('requests OK')"
+
       - name: Test MongoDB Connection
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
