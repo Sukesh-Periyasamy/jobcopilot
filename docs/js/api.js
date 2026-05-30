@@ -307,6 +307,13 @@ async function getDashboardPreferences() {
   return request('/preferences/dashboard');
 }
 
+/**
+ * GET /career-radar — Fetch personalized career radar with scored jobs.
+ */
+async function getCareerRadar() {
+  return request('/career-radar');
+}
+
 // Attach to window for non-module usage (GitHub Pages, no build step)
 if (typeof window !== 'undefined') {
   window.JobCopilotAPI = {
@@ -332,5 +339,6 @@ if (typeof window !== 'undefined') {
     getInternships,
     getAnalytics,
     getDashboardPreferences,
+    getCareerRadar,
   };
 }

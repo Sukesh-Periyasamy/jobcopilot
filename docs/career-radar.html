@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JobCopilot — Career Radar</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .radar-stats {
+      display: flex;
+      gap: var(--space-lg);
+      margin-bottom: var(--space-xl);
+    }
+    .radar-stat {
+      background: var(--bg-glass);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: var(--space-md) var(--space-lg);
+      backdrop-filter: blur(8px);
+    }
+    .radar-stat__value {
+      font-size: var(--font-size-2xl);
+      font-weight: 700;
+      color: var(--accent-blue);
+    }
+    .radar-stat__label {
+      font-size: var(--font-size-sm);
+      color: var(--text-secondary);
+    }
+    .radar-tabs {
+      display: flex;
+      gap: var(--space-sm);
+      margin-bottom: var(--space-lg);
+      flex-wrap: wrap;
+    }
+    .radar-tab {
+      padding: var(--space-sm) var(--space-md);
+      border-radius: var(--radius-full);
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-glass);
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: var(--font-size-sm);
+      transition: var(--transition-fast);
+    }
+    .radar-tab:hover {
+      background: var(--bg-glass-hover);
+      color: var(--text-primary);
+    }
+    .radar-tab--active {
+      background: var(--accent-blue);
+      color: white;
+      border-color: var(--accent-blue);
+    }
+    .job-card {
+      background: var(--bg-glass);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: var(--space-lg);
+      margin-bottom: var(--space-md);
+      backdrop-filter: blur(8px);
+      transition: var(--transition-fast);
+    }
+    .job-card:hover {
+      border-color: var(--border-medium);
+      background: var(--bg-glass-hover);
+    }
+    .job-card__header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: var(--space-sm);
+    }
+    .job-card__score {
+      background: var(--accent-blue);
+      color: white;
+      font-weight: 700;
+      font-size: var(--font-size-sm);
+      padding: 2px 10px;
+      border-radius: var(--radius-full);
+      white-space: nowrap;
+    }
+    .job-card__title {
+      font-size: var(--font-size-lg);
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+    .job-card__company {
+      color: var(--text-secondary);
+      font-size: var(--font-size-sm);
+    }
+    .job-card__meta {
+      display: flex;
+      gap: var(--space-md);
+      font-size: var(--font-size-sm);
+      color: var(--text-tertiary);
+      margin-bottom: var(--space-sm);
+    }
+    .job-card__collections {
+      display: flex;
+      gap: var(--space-xs);
+      flex-wrap: wrap;
+      margin-bottom: var(--space-sm);
+    }
+    .job-card__tag {
+      font-size: var(--font-size-xs);
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      background: rgba(59, 130, 246, 0.15);
+      color: var(--accent-blue);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+    .job-card__link {
+      display: inline-block;
+      font-size: var(--font-size-sm);
+      color: var(--accent-blue);
+      text-decoration: none;
+    }
+    .job-card__link:hover {
+      text-decoration: underline;
+    }
+    .error-state, .empty-state {
+      text-align: center;
+      padding: var(--space-3xl);
+      color: var(--text-secondary);
+    }
+    .error-state__icon, .empty-state__icon {
+      font-size: 3rem;
+      margin-bottom: var(--space-md);
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar" role="navigation" aria-label="Main navigation">
+    <div class="navbar__brand">🚀 JobCopilot</div>
+    <ul class="navbar__nav">
+      <li><a href="index.html" class="navbar__link">Dashboard</a></li>
+      <li><a href="jobs.html" class="navbar__link">Jobs</a></li>
+      <li><a href="internships.html" class="navbar__link">Internships</a></li>
+      <li><a href="analytics.html" class="navbar__link">Analytics</a></li>
+      <li><a href="career-radar.html" class="navbar__link navbar__link--active" aria-current="page">Career Radar</a></li>
+      <li><a href="saved.html" class="navbar__link">Saved</a></li>
+      <li><a href="watchlist.html" class="navbar__link">Watchlist</a></li>
+      <li><a href="settings.html" class="navbar__link">Settings</a></li>
+    </ul>
+  </nav>
+
+  <main class="main-content">
+    <header class="page-header">
+      <h1 class="page-header__title">🎯 Career Radar</h1>
+      <p class="page-header__subtitle">Personalized job matches scored for your profile</p>
+    </header>
+
+    <!-- Stats -->
+    <div id="radar-stats" class="radar-stats" style="display: none;">
+      <div class="radar-stat">
+        <div class="radar-stat__value" id="stat-total">0</div>
+        <div class="radar-stat__label">Jobs Scored</div>
+      </div>
+      <div class="radar-stat">
+        <div class="radar-stat__value" id="stat-matches">0</div>
+        <div class="radar-stat__label">Matches Found</div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="radar-tabs" id="radar-tabs">
+      <button class="radar-tab radar-tab--active" data-tab="top_matches">⭐ Top Matches</button>
+      <button class="radar-tab" data-tab="research_matches">🔬 Research</button>
+      <button class="radar-tab" data-tab="internships">🎓 Internships</button>
+      <button class="radar-tab" data-tab="watchlist_matches">👀 Watchlist</button>
+      <button class="radar-tab" data-tab="remote_matches">🌍 Remote</button>
+    </div>
+
+    <!-- Loading -->
+    <div id="loading-state">
+      <div class="skeleton skeleton--row"></div>
+      <div class="skeleton skeleton--row"></div>
+      <div class="skeleton skeleton--row"></div>
+      <div class="skeleton skeleton--row"></div>
+      <div class="skeleton skeleton--row"></div>
+    </div>
+
+    <!-- Error -->
+    <div id="error-state" style="display: none;">
+      <div class="error-state">
+        <div class="error-state__icon">⚠️</div>
+        <p>Unable to load career radar. Is the backend running?</p>
+        <button class="btn btn--primary" id="retry-btn">Retry</button>
+      </div>
+    </div>
+
+    <!-- Job Cards -->
+    <div id="jobs-container" style="display: none;"></div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/career-radar.js"></script>
+</body>
+</html>
