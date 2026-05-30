@@ -241,3 +241,103 @@ def _format_linkedin_job(job: dict) -> dict:
         "skills": skills[:8],
         "description_preview": job.get("description", "")[:200],
     }
+
+
+@router.get("/linkedin/skills/{job_url:path}")
+def get_job_skills(job_url: str) -> dict:
+    """Extract and return skills for a specific job."""
+    try:
+        from app.services.job_enrichment import extract_skills, categorize_job
+
+        db = get_database()
+        jobs_col = db["jobs"]
+
+        job = jobs_col.find_one({"job_url": job_url}, {"_id": 0})
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+
+        description = job.get("description", "")
+        title = job.get("title", "")
+
+        skills = extract_skills(description)
+        category = categorize_job(title, description)
+
+        return {
+            "title": title,
+            "company": job.get("company", ""),
+            "skills": skills,
+            "category": category,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error extracting skills: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to extract skills")
+
+
+@router.get("/linkedin/categories")
+def get_job_categories() -> dict:
+    """Return job count by category across all LinkedIn jobs."""
+    try:
+        from app.services.job_enrichment import categorize_job
+
+        db = get_database()
+        jobs_col = db["jobs"]
+
+        # Get LinkedIn jobs
+        query = {"$or": [
+            {"source_platform": "linkedin"},
+            {"source": {"$regex": "linkedin", "$options": "i"}},
+        ]}
+        cursor = jobs_col.find(query, {"_id": 0, "title": 1, "description": 1}).limit(500)
+
+        category_counts: dict[str, int] = {}
+        for job in cursor:
+            cat = categorize_job(job.get("title", ""), job.get("description", ""))
+            category_counts[cat] = category_counts.get(cat, 0) + 1
+
+        sorted_categories = sorted(category_counts.items(), key=lambda x: x[1], reverse=True)
+
+        return {
+            "categories": [{"name": k, "count": v} for k, v in sorted_categories],
+            "total": sum(category_counts.values()),
+        }
+    except Exception as e:
+        logger.error("Error computing categories: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to compute categories")
+
+
+@router.get("/scraper/status")
+def get_scraper_status() -> dict:
+    """Return the latest scraper run status."""
+    try:
+        db = get_database()
+        history_col = db["scrape_history"]
+
+        # Get latest run
+        latest = history_col.find_one({}, sort=[("timestamp", -1)])
+
+        # Count jobs by source
+        jobs_col = db["jobs"]
+        total_jobs = jobs_col.count_documents({})
+        linkedin_jobs = jobs_col.count_documents({"source_platform": "linkedin"})
+        jobhive_jobs = jobs_col.count_documents({"source_type": "jobhive"})
+        research_jobs = jobs_col.count_documents({"source_type": "research_scraper"})
+
+        return {
+            "total_jobs": total_jobs,
+            "by_source": {
+                "linkedin": linkedin_jobs,
+                "jobhive": jobhive_jobs,
+                "research": research_jobs,
+                "other": total_jobs - linkedin_jobs - jobhive_jobs - research_jobs,
+            },
+            "last_run": {
+                "jobs_found": latest.get("jobs_found", 0) if latest else 0,
+                "duplicates_skipped": latest.get("duplicates_skipped", 0) if latest else 0,
+                "timestamp": latest.get("timestamp", "") if latest else "Never",
+            },
+        }
+    except Exception as e:
+        logger.error("Error fetching scraper status: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to fetch scraper status")

@@ -1,47 +1,59 @@
 """LinkedIn Jobs Scraper for JobCopilot.
 
-Uses linkedin-jobs-scraper package to fetch jobs from LinkedIn
-with India-focused MedTech search terms. Normalizes results into
-JobRecord format for MongoDB storage.
+Uses linkedin-jobs-scraper package to fetch jobs from LinkedIn.
+Loads queries from linkedin_queries.json for easy configuration.
+Enriches jobs with skills and categories.
 
 Install: pip install linkedin-jobs-scraper
 """
 
 from __future__ import annotations
 
+import json
 import logging
-from datetime import datetime, timezone
+import os
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 from app.models.job import JobRecord, ScrapeResult
+from app.services.job_enrichment import categorize_job, extract_skills
 
 logger = logging.getLogger(__name__)
 
-# India-focused MedTech search queries
-LINKEDIN_QUERIES = [
-    {"query": "Biomedical Engineer", "location": "India"},
-    {"query": "Medical Device Engineer", "location": "India"},
-    {"query": "Clinical Research Associate", "location": "India"},
-    {"query": "Research Associate", "location": "Bangalore"},
-    {"query": "Research Associate", "location": "Chennai"},
-    {"query": "Project Associate", "location": "India"},
-    {"query": "Healthcare AI", "location": "India"},
-    {"query": "Quality Engineer Medical Device", "location": "India"},
-    {"query": "Regulatory Affairs", "location": "India"},
-    {"query": "R&D Engineer Medical", "location": "India"},
-    {"query": "Embedded Systems Engineer", "location": "Bangalore"},
-    {"query": "Biomedical Engineer", "location": "Bangalore"},
-    {"query": "Biomedical Engineer", "location": "Chennai"},
-    {"query": "Diagnostics Engineer", "location": "India"},
-    {"query": "Biosensor", "location": "India"},
-]
+# Load queries from JSON config
+QUERIES_FILE = Path(__file__).parent.parent / "config" / "linkedin_queries.json"
 
-# Maximum results per query
 MAX_RESULTS_PER_QUERY = 25
+
+
+def _load_queries() -> list[dict]:
+    """Load LinkedIn queries from JSON config file."""
+    if not QUERIES_FILE.exists():
+        logger.warning("linkedin_queries.json not found at %s", QUERIES_FILE)
+        return []
+
+    with open(QUERIES_FILE) as f:
+        config = json.load(f)
+
+    queries = []
+    for category, data in config.items():
+        for query_text in data.get("queries", []):
+            for location in data.get("locations", ["India"]):
+                queries.append({
+                    "query": query_text,
+                    "location": location,
+                    "category": category,
+                })
+
+    return queries
 
 
 def scrape_linkedin_jobs() -> ScrapeResult:
     """Scrape LinkedIn jobs using linkedin-jobs-scraper.
+
+    Loads queries from linkedin_queries.json, scrapes LinkedIn,
+    enriches with skills/categories, and returns normalized results.
 
     Returns:
         ScrapeResult with collected jobs and errors.
@@ -53,7 +65,6 @@ def scrape_linkedin_jobs() -> ScrapeResult:
         from linkedin_jobs_scraper.filters import (
             RelevanceFilters,
             TimeFilters,
-            TypeFilters,
             ExperienceLevelFilters,
         )
     except ImportError as e:
@@ -65,22 +76,36 @@ def scrape_linkedin_jobs() -> ScrapeResult:
 
     all_jobs: list[JobRecord] = []
     all_errors: list[str] = []
+    seen_urls: set[str] = set()  # Deduplication
     now_iso = datetime.now(timezone.utc).isoformat()
 
     def on_data(data: EventData) -> None:
         """Callback for each job found."""
         try:
+            url = data.link or ""
+
+            # Deduplicate by URL
+            if url in seen_urls:
+                return
+            seen_urls.add(url)
+
+            # Extract skills and category
+            description = data.description or ""
+            title = data.title or ""
+            skills = extract_skills(description)
+            category = categorize_job(title, description)
+
             job = JobRecord(
-                title=data.title or "",
+                title=title,
                 company=data.company or "",
                 location=data.place or "",
                 source="linkedin",
-                job_url=data.link or "",
-                description=data.description or "",
-                job_type=data.job_type or "",
-                salary=data.salary or "",
-                date_posted=_parse_linkedin_date(data.date),
-                search_term=data.query or "",
+                job_url=url,
+                description=description,
+                job_type=getattr(data, "job_type", "") or "",
+                salary=getattr(data, "salary", "") or "",
+                date_posted=_parse_linkedin_date(getattr(data, "date", None)),
+                search_term=getattr(data, "query", "") or "",
                 source_type="linkedin_scraper",
                 source_platform="linkedin",
                 created_at=now_iso,
@@ -98,16 +123,21 @@ def scrape_linkedin_jobs() -> ScrapeResult:
 
     def on_end() -> None:
         """Callback when scraping completes."""
-        logger.info("LinkedIn scraping completed. Total jobs: %d", len(all_jobs))
+        logger.info("LinkedIn scraping completed. Total unique jobs: %d", len(all_jobs))
 
-    # Build queries
+    # Load queries from config
+    query_configs = _load_queries()
+    if not query_configs:
+        return ScrapeResult(jobs=[], errors=["No queries configured in linkedin_queries.json"])
+
+    # Build Query objects
     queries = []
-    for q in LINKEDIN_QUERIES:
+    for qc in query_configs:
         try:
             query = Query(
-                query=q["query"],
+                query=qc["query"],
                 options=QueryOptions(
-                    locations=[q["location"]],
+                    locations=[qc["location"]],
                     limit=MAX_RESULTS_PER_QUERY,
                     filters=QueryFilters(
                         relevance=RelevanceFilters.RECENT,
@@ -118,7 +148,7 @@ def scrape_linkedin_jobs() -> ScrapeResult:
             )
             queries.append(query)
         except Exception as exc:
-            logger.warning("Error building query for %s: %s", q, exc)
+            logger.warning("Error building query for %s: %s", qc, exc)
 
     # Run scraper
     try:
@@ -134,7 +164,7 @@ def scrape_linkedin_jobs() -> ScrapeResult:
         scraper.on(Events.ERROR, on_error)
         scraper.on(Events.END, on_end)
 
-        logger.info("Starting LinkedIn scrape with %d queries", len(queries))
+        logger.info("Starting LinkedIn scrape with %d queries from config", len(queries))
         scraper.run(queries)
 
     except Exception as exc:
@@ -143,19 +173,17 @@ def scrape_linkedin_jobs() -> ScrapeResult:
         all_errors.append(error_msg)
 
     logger.info(
-        "LinkedIn scrape complete: %d jobs, %d errors",
+        "LinkedIn scrape complete: %d unique jobs, %d errors, %d duplicates filtered",
         len(all_jobs),
         len(all_errors),
+        len(seen_urls) - len(all_jobs),
     )
 
     return ScrapeResult(jobs=all_jobs, errors=all_errors)
 
 
 def _parse_linkedin_date(date_str: str | None) -> str:
-    """Parse LinkedIn date string to YYYY-MM-DD format.
-
-    LinkedIn returns dates like "2 days ago", "1 week ago", etc.
-    """
+    """Parse LinkedIn date string to YYYY-MM-DD format."""
     if not date_str:
         return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
@@ -166,18 +194,17 @@ def _parse_linkedin_date(date_str: str | None) -> str:
         if "today" in date_lower or "just" in date_lower:
             return now.strftime("%Y-%m-%d")
         elif "yesterday" in date_lower or "1 day" in date_lower:
-            return (now - __import__("datetime").timedelta(days=1)).strftime("%Y-%m-%d")
+            return (now - timedelta(days=1)).strftime("%Y-%m-%d")
         elif "day" in date_lower:
             days = int("".join(filter(str.isdigit, date_lower)) or "1")
-            return (now - __import__("datetime").timedelta(days=days)).strftime("%Y-%m-%d")
+            return (now - timedelta(days=days)).strftime("%Y-%m-%d")
         elif "week" in date_lower:
             weeks = int("".join(filter(str.isdigit, date_lower)) or "1")
-            return (now - __import__("datetime").timedelta(weeks=weeks)).strftime("%Y-%m-%d")
+            return (now - timedelta(weeks=weeks)).strftime("%Y-%m-%d")
         elif "month" in date_lower:
             months = int("".join(filter(str.isdigit, date_lower)) or "1")
-            return (now - __import__("datetime").timedelta(days=months * 30)).strftime("%Y-%m-%d")
+            return (now - timedelta(days=months * 30)).strftime("%Y-%m-%d")
         else:
-            # Try parsing as date
             return date_str
     except (ValueError, TypeError):
         return now.strftime("%Y-%m-%d")

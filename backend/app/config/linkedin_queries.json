@@ -1,0 +1,26 @@
+{
+  "medtech": {
+    "queries": ["Biomedical Engineer", "Medical Device Engineer", "Clinical Research Associate", "Diagnostics Engineer", "Biosensor"],
+    "locations": ["India", "Bangalore", "Chennai"]
+  },
+  "research": {
+    "queries": ["Research Associate", "Project Associate", "JRF", "Research Scientist", "R&D Engineer"],
+    "locations": ["India", "Bangalore", "Chennai", "Hyderabad"]
+  },
+  "healthcare_ai": {
+    "queries": ["Healthcare AI", "Medical AI", "Clinical Data Analyst", "Health Informatics"],
+    "locations": ["India", "Bangalore", "Remote"]
+  },
+  "quality_regulatory": {
+    "queries": ["Quality Engineer Medical Device", "Regulatory Affairs", "Validation Engineer", "V&V Engineer"],
+    "locations": ["India", "Bangalore", "Hyderabad"]
+  },
+  "embedded": {
+    "queries": ["Embedded Systems Engineer", "Firmware Engineer", "IoT Engineer"],
+    "locations": ["India", "Bangalore", "Chennai"]
+  },
+  "python_backend": {
+    "queries": ["Python Developer", "Backend Developer", "Data Scientist"],
+    "locations": ["India", "Bangalore", "Chennai", "Remote"]
+  }
+}
