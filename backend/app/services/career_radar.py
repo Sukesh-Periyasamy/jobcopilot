@@ -131,13 +131,17 @@ EARLY_CAREER_KEYWORDS: list[str] = [
     "entry",
     "graduate",
     "engineer i",
+    "scientist i",
     "research associate",
+    "research assistant",
+    "project associate",
+    "project assistant",
     "trainee",
     "intern",
     "fresher",
     "early career",
 ]
-EARLY_CAREER_BONUS = 8
+EARLY_CAREER_BONUS = 10
 
 # Minimum score to be considered a match
 MIN_SCORE = 15
@@ -722,7 +726,22 @@ class CareerRadarService:
         return False
 
     def _format_job(self, job: dict) -> dict:
-        """Format a scored job for the API response."""
+        """Format a scored job for the API response with status and explanation."""
+        score = job.get("_score", 0)
+
+        # Status label based on score
+        if score >= 85:
+            status = "🔥 Apply Immediately"
+        elif score >= 70:
+            status = "⭐ Strong Match"
+        elif score >= 50:
+            status = "👍 Good Match"
+        else:
+            status = "📋 Optional"
+
+        # Why recommended
+        why = self._build_why(job)
+
         return {
             "title": job.get("title", ""),
             "company": job.get("company", ""),
@@ -730,6 +749,54 @@ class CareerRadarService:
             "job_url": job.get("job_url", ""),
             "date_posted": job.get("date_posted", ""),
             "source_platform": job.get("source_platform", ""),
-            "score": job.get("_score", 0),
+            "score": score,
+            "status": status,
             "collections": job.get("_collections", []),
+            "why": why,
         }
+
+    def _build_why(self, job: dict) -> list[str]:
+        """Build a list of reasons why this job is recommended."""
+        reasons = []
+        title = job.get("title", "").lower()
+        location = job.get("location", "").lower()
+        collections = job.get("_collections", [])
+
+        # Role match
+        for role_kw in ROLE_BONUSES:
+            if role_kw in title:
+                reasons.append(f"{role_kw.title()} role")
+                break
+
+        # Collections
+        for coll in collections[:2]:
+            reasons.append(f"{coll} match")
+
+        # Location
+        india_cities = ["india", "bangalore", "bengaluru", "chennai", "hyderabad", "pune", "mumbai", "gurgaon", "delhi"]
+        if any(city in location for city in india_cities):
+            reasons.append("India location")
+        elif "remote" in location:
+            reasons.append("Remote position")
+
+        # Fresher-friendly
+        for kw in EARLY_CAREER_KEYWORDS:
+            if kw in title:
+                reasons.append("Fresher-friendly")
+                break
+
+        # Freshness
+        date_posted = job.get("date_posted", "")
+        if date_posted:
+            try:
+                from datetime import datetime, timezone
+                posted = datetime.strptime(date_posted, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                days = (datetime.now(timezone.utc) - posted).days
+                if days <= 3:
+                    reasons.append("Posted recently")
+                elif days <= 7:
+                    reasons.append("Posted this week")
+            except (ValueError, TypeError):
+                pass
+
+        return reasons

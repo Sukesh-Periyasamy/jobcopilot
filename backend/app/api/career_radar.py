@@ -76,6 +76,74 @@ def get_career_radar_fresh() -> dict:
         raise HTTPException(status_code=500, detail="Failed to compute fresh radar")
 
 
+@router.get("/career-radar/apply-now")
+def get_apply_now() -> dict:
+    """Return top 10 jobs to apply to right now.
+
+    Rules: India only, posted <= 14 days, score >= 70, not applied.
+    This is your daily application queue — the single most actionable endpoint.
+    """
+    try:
+        from datetime import datetime, timedelta, timezone
+
+        from app.database.connection import get_database
+        from app.database.repository import JobsRepository
+
+        service = CareerRadarService()
+        scored_jobs, total_count = service._score_all_jobs()
+
+        # Get exclusions
+        repo = JobsRepository()
+        applied_urls = {j.get("job_url") for j in repo.get_applied_jobs()}
+        excluded = applied_urls
+
+        now = datetime.now(timezone.utc)
+        india_cities = [
+            "india", "bangalore", "bengaluru", "chennai", "coimbatore",
+            "hyderabad", "pune", "mumbai", "delhi", "noida", "gurgaon",
+            "gurugram", "remote",
+        ]
+
+        apply_now = []
+        for job in scored_jobs:
+            if job.get("_score", 0) < 70:
+                break  # Sorted desc
+
+            # India only
+            location = job.get("location", "").lower()
+            if not any(city in location for city in india_cities):
+                continue
+
+            # Posted <= 14 days
+            date_posted = job.get("date_posted", "")
+            if date_posted:
+                try:
+                    posted = datetime.strptime(date_posted, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                    if (now - posted).days > 14:
+                        continue
+                except (ValueError, TypeError):
+                    continue
+
+            # Not applied
+            if job.get("job_url") in excluded:
+                continue
+
+            apply_now.append(service._format_job(job))
+            if len(apply_now) >= 10:
+                break
+
+        return {
+            "apply_now": apply_now,
+            "stats": {
+                "total_scored": total_count,
+                "apply_now_count": len(apply_now),
+            },
+        }
+    except Exception as e:
+        logger.error("Error computing apply-now: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to compute apply-now list")
+
+
 @router.get("/watchlist-alerts")
 def get_watchlist_alerts() -> dict:
     """Return new jobs from watchlist companies posted in the last 7 days.
