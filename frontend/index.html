@@ -13,6 +13,8 @@
     <ul class="navbar__nav">
       <li><a href="index.html" class="navbar__link navbar__link--active" aria-current="page">Dashboard</a></li>
       <li><a href="jobs.html" class="navbar__link">Jobs</a></li>
+      <li><a href="internships.html" class="navbar__link">Internships</a></li>
+      <li><a href="analytics.html" class="navbar__link">Analytics</a></li>
       <li><a href="saved.html" class="navbar__link">Saved</a></li>
       <li><a href="watchlist.html" class="navbar__link">Watchlist</a></li>
       <li><a href="settings.html" class="navbar__link">Settings</a></li>
@@ -25,6 +27,27 @@
       <h1 class="page-header__title">Dashboard</h1>
       <p class="page-header__subtitle">Your job search at a glance</p>
     </header>
+
+    <!-- Personal Dashboard Sections (hidden by default, shown when data loads) -->
+    <div id="personal-dashboard" style="display: none;">
+      <!-- Pinned Company Jobs Section -->
+      <section id="pinned-company-jobs-section" class="mb-lg" aria-label="Pinned company jobs" style="display: none;">
+        <h2 class="page-header__title" style="font-size: var(--font-size-xl); margin-bottom: var(--space-md);">⭐ Pinned Company Jobs</h2>
+        <div id="pinned-company-jobs-container" class="grid grid--3col"></div>
+      </section>
+
+      <!-- Pinned Collection Jobs Section -->
+      <section id="pinned-collection-jobs-section" class="mb-lg" aria-label="Pinned collection jobs" style="display: none;">
+        <h2 class="page-header__title" style="font-size: var(--font-size-xl); margin-bottom: var(--space-md);">📂 Pinned Collection Jobs</h2>
+        <div id="pinned-collection-jobs-container" class="grid grid--3col"></div>
+      </section>
+
+      <!-- New Research Opportunities Section -->
+      <section id="new-research-section" class="mb-lg" aria-label="New research opportunities" style="display: none;">
+        <h2 class="page-header__title" style="font-size: var(--font-size-xl); margin-bottom: var(--space-md);">🔬 New Research Opportunities</h2>
+        <div id="new-research-container" class="grid grid--3col"></div>
+      </section>
+    </div>
 
     <!-- Metric Cards Section -->
     <section aria-label="Summary metrics">

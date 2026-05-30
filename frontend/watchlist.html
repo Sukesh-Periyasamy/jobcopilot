@@ -33,6 +33,17 @@
           <label class="form-label" for="input-company-name">Company Name</label>
           <input type="text" id="input-company-name" class="form-input" placeholder="e.g. Siemens Healthineers" maxlength="100">
         </div>
+        <div class="form-group" style="min-width: 160px;">
+          <label class="form-label" for="input-ats-platform">ATS Platform</label>
+          <select id="input-ats-platform" class="form-input form-input--select">
+            <option value="">None</option>
+            <option value="workday">Workday</option>
+            <option value="greenhouse">Greenhouse</option>
+            <option value="lever">Lever</option>
+            <option value="ashby">Ashby</option>
+            <option value="successfactors">SuccessFactors</option>
+          </select>
+        </div>
         <div class="form-group" style="justify-content: flex-end; align-self: flex-end;">
           <button id="btn-add-company" class="btn btn--primary">Add Company</button>
         </div>

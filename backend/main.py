@@ -38,6 +38,13 @@ from app.api.watchlist import router as watchlist_router
 from app.api.saved import router as saved_router
 from app.api.applied import router as applied_router
 from app.api.stats import router as stats_router
+from app.api.export import router as export_router
+from app.api.collections import router as collections_router
+from app.api.research import router as research_router
+from app.api.internships import router as internships_router
+from app.api.opportunities import router as opportunities_router
+from app.api.analytics import router as analytics_router
+from app.api.preferences import router as preferences_router
 
 app.include_router(health_router)
 app.include_router(jobs_router)
@@ -45,6 +52,13 @@ app.include_router(watchlist_router)
 app.include_router(saved_router)
 app.include_router(applied_router)
 app.include_router(stats_router)
+app.include_router(export_router)
+app.include_router(collections_router)
+app.include_router(research_router)
+app.include_router(internships_router)
+app.include_router(opportunities_router)
+app.include_router(analytics_router)
+app.include_router(preferences_router)
 
 
 # --- CLI ---

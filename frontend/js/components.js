@@ -68,6 +68,40 @@ function createMetricCard(title, value, icon) {
 }
 
 // ============================================
+// Source Platform Badge
+// ============================================
+
+/**
+ * Creates a source platform badge with color coding.
+ * @param {Object} job - Job object with source_platform and/or source fields
+ * @returns {HTMLElement} Badge element
+ */
+function createSourceBadge(job) {
+  var platform = (job.source_platform || job.source || '').toLowerCase();
+
+  var colorMap = {
+    linkedin: 'blue',
+    indeed: 'purple',
+    naukri: 'red',
+    google: 'green',
+    workday: 'orange',
+    greenhouse: 'teal',
+    lever: 'indigo',
+    ashby: 'pink',
+    successfactors: 'amber',
+  };
+
+  var color = colorMap[platform] || 'gray';
+  var label = platform.charAt(0).toUpperCase() + platform.slice(1);
+
+  var badge = document.createElement('span');
+  badge.className = 'badge badge--pill badge--' + color;
+  badge.textContent = label;
+
+  return badge;
+}
+
+// ============================================
 // Job Card
 // ============================================
 
@@ -97,7 +131,6 @@ function createJobCard(job) {
       </div>
     </div>
     <div class="job-card__meta">
-      <span class="badge badge--blue badge--source">${escapeHtml(job.source)}</span>
       <span>${escapeHtml(job.location || 'Remote')}</span>
       ${job.job_type ? `<span>${escapeHtml(job.job_type)}</span>` : ''}
       ${job.date_posted ? `<span>${job.date_posted}</span>` : ''}
@@ -107,6 +140,11 @@ function createJobCard(job) {
       <button class="btn btn--secondary btn--sm" data-action="save" data-job-url="${escapeHtml(job.job_url)}">Save</button>
     </div>
   `;
+
+  // Insert source badge into the meta section
+  const meta = card.querySelector('.job-card__meta');
+  const sourceBadge = createSourceBadge(job);
+  meta.insertBefore(sourceBadge, meta.firstChild);
 
   // Insert fresh badge into the header
   const header = card.querySelector('.job-card__header');
@@ -412,6 +450,7 @@ if (typeof window !== 'undefined') {
     createDataTable,
     createSkeletonLoader,
     createFreshBadge,
+    createSourceBadge,
     createPagination,
     showToast,
     createEmptyState,

@@ -1,0 +1,232 @@
+JobCopilot Engine v1.0.0 — What's Done
+=======================================
+
+Pushed to: https://github.com/Sukesh-Periyasamy/jobcopilot
+Tag: v1.0.0
+Date: May 30, 2026
+Total Files: 109
+Total Cost: ₹0/month
+
+
+ARCHITECTURE
+============
+- Split architecture: Frontend (GitHub Pages) + Backend (Render Free) + Database (MongoDB Atlas Free)
+- Render Cron Job for daily automated scraping at 08:00 IST
+- Telegram Bot API for notifications
+- Zero build step frontend (pure HTML/CSS/JS)
+
+
+BACKEND (FastAPI on Render Free)
+================================
+✅ backend/app/config/settings.py        — Configuration loader (.env + env vars, validation, defaults)
+✅ backend/app/utils/logger.py           — Rotating file logger (10MB, 5 backups) + console output
+✅ backend/app/utils/retry.py            — Exponential backoff retry utility (generic)
+✅ backend/app/models/job.py             — Core dataclasses (JobRecord, ScrapeResult, BulkInsertResult, FilterCriteria, PaginatedResult)
+✅ backend/app/models/schemas.py         — Pydantic request/response models (JobResponse, StatsResponse, etc.)
+✅ backend/app/database/connection.py    — MongoDB singleton with retry on connect
+✅ backend/app/database/repository.py    — Full CRUD repository (bulk insert, dedup, watchlist, stats, saved, applied)
+✅ backend/app/services/filter_engine.py — MongoDB query builder (regex, exact match, $or, date ranges, AND logic)
+✅ backend/app/services/notifier.py      — Telegram Bot API (message splitting at 4096 chars, watchlist alerts, retry)
+✅ backend/app/scraper/scraper.py        — JobSpy wrapper (ThreadPoolExecutor, normalization, error resilience)
+✅ backend/app/api/health.py             — GET /health
+✅ backend/app/api/jobs.py               — GET /jobs, /jobs/recent, /jobs/search, /jobs/company/{name}
+✅ backend/app/api/watchlist.py          — GET/POST/DELETE /watchlist
+✅ backend/app/api/saved.py              — POST/DELETE /save-job, GET /saved-jobs
+✅ backend/app/api/applied.py            — POST/PATCH /apply-job, GET /applied-jobs
+✅ backend/app/api/stats.py              — GET /stats
+✅ backend/main.py                       — FastAPI app + CLI (serve, scrape commands)
+✅ backend/daily_scraper.py              — Render Cron Job entry point (scrape → store → notify)
+✅ backend/render.yaml                   — Render Blueprint (web service + cron job)
+✅ backend/requirements.txt              — Python dependencies
+✅ backend/.env.example                  — Environment variable template
+
+
+FRONTEND (GitHub Pages — Static HTML/CSS/JS)
+============================================
+✅ frontend/css/style.css                — Dark mode glassmorphism design system (CSS variables, responsive)
+✅ frontend/js/api.js                    — API abstraction layer (15 functions, error handling)
+✅ frontend/js/components.js             — Reusable UI components (cards, tables, badges, pagination, toasts)
+✅ frontend/js/dashboard.js              — Dashboard page logic (metrics + recent jobs)
+✅ frontend/js/jobs.js                   — Jobs feed logic (filters, pagination, save, apply)
+✅ frontend/js/saved.js                  — Saved jobs logic (list, remove)
+✅ frontend/js/watchlist.js              — Watchlist logic (add/remove, validation)
+✅ frontend/js/settings.js               — Settings page (read-only config display)
+✅ frontend/index.html                   — Dashboard page
+✅ frontend/jobs.html                    — Jobs feed page
+✅ frontend/saved.html                   — Saved jobs page
+✅ frontend/watchlist.html               — Watchlist page
+✅ frontend/settings.html                — Settings page
+
+
+TESTS
+=====
+✅ backend/tests/test_settings.py        — 18 tests (config loading, validation, defaults)
+✅ backend/tests/test_logger.py          — 15 tests (handlers, format, rotation)
+✅ backend/tests/test_retry.py           — 8 tests (backoff, retries, logging)
+✅ backend/tests/test_connection.py      — 9 tests (singleton, retry, close)
+✅ backend/tests/test_repository.py      — 30 tests (CRUD, dedup, watchlist, stats)
+✅ backend/tests/test_filter_engine.py   — 18 tests (single/multi criteria, escaping)
+✅ backend/tests/test_scraper.py         — 14 tests (normalization, combinations, resilience)
+✅ backend/tests/test_notifier.py        — 18 tests (init, send, split, watchlist, retry)
+✅ backend/tests/test_schemas.py         — 12 tests (Pydantic validation)
+✅ backend/tests/test_main.py            — 6 tests (CLI, FastAPI config, CORS)
+✅ backend/tests/conftest.py             — Shared fixtures
+
+
+DEPLOYMENT & DOCS
+=================
+✅ .gitignore                            — Comprehensive ignore rules
+✅ README.md                             — Full documentation (architecture, setup, deploy, API reference)
+✅ backend/render.yaml                   — One-click Render Blueprint
+
+
+FEATURES IMPLEMENTED
+====================
+• Multi-source job scraping (LinkedIn, Indeed, Naukri, Google via JobSpy)
+• Automatic deduplication via MongoDB unique index on job_url
+• Advanced filtering (source, location, company, keyword, job type, date range)
+• Full-text search across titles and descriptions
+• Job saving and bookmarking
+• Application status tracking (Interested → Applied → Interview → Offer → Joined/Rejected)
+• Company watchlist (max 50, default: Siemens Healthineers, GE HealthCare, Philips, Medtronic, Abbott, Dozee)
+• Telegram notifications (daily summary + watchlist alerts, message splitting at 4096 chars)
+• Dashboard metrics (total jobs, today, this week, saved, applied)
+• Pagination (50 per page, configurable)
+• Fresh job badges (🟢 Posted Today, 🟡 Posted This Week, ⚪ Older)
+• Retry with exponential backoff (all external calls)
+• Rotating logs (10MB, 5 backups, ISO 8601 format)
+• Configurable via .env (search terms, locations, sources, schedule time)
+• Dark mode glassmorphism UI (Vercel/Linear/GitHub inspired)
+• Mobile-responsive design
+• Loading skeletons and empty states
+• Toast notifications
+
+
+WHAT'S NOT DONE (Optional — can add later)
+==========================================
+○ Property-based tests with Hypothesis (15 tests defined in spec, marked optional)
+○ API integration tests with FastAPI TestClient
+○ v2: Resume Upload
+○ v3: Job Match %
+○ v4: Enhanced Application Tracker
+○ v5: Research Opportunities (IISc, DRDO, CDAC)
+
+
+NEXT STEPS TO GO LIVE
+=====================
+1. Render — Connect repo, create web service + cron job (or use render.yaml Blueprint)
+2. GitHub Pages — Settings → Pages → Source: main branch, folder /frontend
+3. MongoDB Atlas — Create free cluster, copy connection string to MONGODB_URI
+4. Telegram (optional) — Create bot via @BotFather, set TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID
+5. Update frontend/js/api.js API_BASE to your actual Render URL
+6. Update backend/main.py CORS origin to your actual GitHub Pages URL
+
+
+================================================================================
+================================================================================
+
+JobCopilot Engine v1.1.0 — What's Done
+=======================================
+
+Tag: v1.1.0
+Date: June 2025
+Total New/Modified Files: 25+
+Total Cost: ₹0/month (unchanged)
+
+
+NEW FEATURES (v1.1)
+====================
+• JobHive ATS scraping (Greenhouse, Lever, Ashby, Workday, SuccessFactors via jobhive-py)
+• Dual-scraper orchestration (JobSpy + JobHive merged in daily workflow)
+• Source metadata tracking (source_type: jobspy/jobhive, source_platform: 9 platforms)
+• ATS source filtering (filter by source_type, source_platform, "ats" umbrella)
+• Job export API (GET /export/csv, GET /export/xlsx with all filters, 10K limit)
+• Company tracker with ATS platform info (7 default companies with ATS mapping)
+• GET /watchlist/ats-info endpoint (companies grouped by ATS platform)
+• Color-coded source platform badges (9 distinct colors)
+• Export buttons on jobs feed (CSV + XLSX with loading states)
+• Enhanced filter dropdown (11 source options including ATS platforms)
+• Backward compatibility for legacy records (read-time defaults, no migration)
+
+
+BACKEND — NEW FILES
+====================
+✅ backend/app/scraper/jobhive_scraper.py    — JobHive ATS scraper (5 platforms, per-platform error handling)
+✅ backend/app/services/export_service.py    — In-memory CSV/XLSX generation (BytesIO, 10K truncation)
+✅ backend/app/api/export.py                 — GET /export/csv, GET /export/xlsx (StreamingResponse)
+✅ backend/tests/test_jobhive_scraper.py     — 20 unit tests + 1 property test (normalization, failures)
+✅ backend/tests/test_daily_scraper.py       — 9 unit tests + 1 property test (merge, partial failures)
+✅ backend/tests/test_export_service.py      — 15 unit tests + 4 property tests (round-trip, truncation)
+✅ backend/tests/test_export_api.py          — 12 unit tests (endpoints, headers, filters)
+✅ backend/tests/test_watchlist_api.py       — 13 unit tests (ats_platform, grouping, validation)
+
+
+BACKEND — MODIFIED FILES
+=========================
+✅ backend/app/models/job.py                 — Added source_type, source_platform to JobRecord + FilterCriteria
+✅ backend/app/models/schemas.py             — Added source fields to JobResponse, WatchlistEntry, AtsGroupResponse
+✅ backend/app/scraper/scraper.py            — Added source_type="jobspy", source_platform from site field
+✅ backend/app/services/filter_engine.py     — Added source_type/source_platform filters + "ats" umbrella
+✅ backend/app/database/repository.py        — Backward compat, new indexes, get_export_jobs, watchlist ATS
+✅ backend/app/api/jobs.py                   — Added source_type, source_platform query params
+✅ backend/app/api/watchlist.py              — Updated for ats_platform, added /watchlist/ats-info
+✅ backend/daily_scraper.py                  — Dual-scraper orchestration with merge logic
+✅ backend/main.py                           — Registered export router
+✅ backend/requirements.txt                  — Added jobhive-py, openpyxl
+
+
+FRONTEND — MODIFIED FILES
+==========================
+✅ frontend/js/api.js                        — Added exportJobsCsv, exportJobsXlsx, getWatchlistAtsInfo, updated addToWatchlist
+✅ frontend/js/components.js                 — Added createSourceBadge (9 platform colors), updated createJobCard
+✅ frontend/js/jobs.js                       — Updated getFilters (source_platform), added export handlers
+✅ frontend/js/watchlist.js                  — ATS badges, platform dropdown, object-based watchlist
+✅ frontend/jobs.html                        — ATS filter options, export buttons
+✅ frontend/watchlist.html                   — ATS platform dropdown in add form
+✅ frontend/css/style.css                    — Badge colors (purple, red, orange, teal, indigo, pink, amber, pill)
+
+
+TESTS (v1.1 additions)
+=======================
+✅ Property 1: JobHive Normalization Correctness (100 examples)
+✅ Property 2: JobSpy Normalization Correctness (100 examples)
+✅ Property 3: Scrape Merge Completeness (100 examples)
+✅ Property 4: Backward Compatibility Defaults (100 examples)
+✅ Property 5: Source Filter Correctness (100 examples)
+✅ Property 6: Filter Composition AND Logic (100 examples)
+✅ Property 7: Export Round-Trip Correctness (100 examples)
+✅ Property 8: ATS-Info Grouping Correctness (100 examples)
+
+Test totals: 285 passed (v1.0: ~148, v1.1 added: ~137)
+
+
+NEW DEPENDENCIES
+=================
+• jobhive-py — ATS platform scraping (MIT license, free)
+• openpyxl — XLSX file generation (MIT license, free)
+
+
+DATABASE CHANGES
+=================
+• 2 new indexes: source_type (ascending), source_platform (ascending)
+• Total indexes: 7 on jobs collection (within 64-index Atlas free-tier limit)
+• No data migration required — backward compatibility at read time
+• Updated default watchlist seed: 7 companies with ATS platform info
+
+
+API ENDPOINTS (new in v1.1)
+============================
+• GET /export/csv?[filters]         — Download filtered jobs as CSV
+• GET /export/xlsx?[filters]        — Download filtered jobs as XLSX
+• GET /watchlist/ats-info           — Companies grouped by ATS platform
+• GET /jobs?source_type=&source_platform=  — New filter parameters
+
+
+FREE-TIER COMPLIANCE
+=====================
+✅ Render Free: single web service + single cron job, 512MB RAM
+✅ MongoDB Atlas Free: 512MB storage, 7 indexes (well under 64 limit)
+✅ GitHub Pages: static frontend, no build step
+✅ In-memory exports: no disk I/O (BytesIO buffers)
+✅ Sequential scraper execution: fits within 15-min cron timeout
+✅ No paid dependencies or services added

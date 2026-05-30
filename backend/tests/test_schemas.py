@@ -5,10 +5,12 @@ from pydantic import ValidationError
 
 from app.models.schemas import (
     ApplyJobRequest,
+    AtsGroupResponse,
     JobResponse,
     PaginatedJobsResponse,
     SaveJobRequest,
     StatsResponse,
+    WatchlistEntry,
     WatchlistRequest,
 )
 
@@ -20,6 +22,8 @@ class TestJobResponse:
             company="Acme Corp",
             location="Bangalore",
             source="linkedin",
+            source_type="jobspy",
+            source_platform="linkedin",
             job_url="https://example.com/job/1",
             description="A great job",
             job_type="full-time",
@@ -32,6 +36,8 @@ class TestJobResponse:
         assert job.title == "Software Engineer"
         assert job.company == "Acme Corp"
         assert job.source == "linkedin"
+        assert job.source_type == "jobspy"
+        assert job.source_platform == "linkedin"
 
 
 class TestPaginatedJobsResponse:
@@ -52,6 +58,8 @@ class TestPaginatedJobsResponse:
             company="Corp",
             location="Remote",
             source="indeed",
+            source_type="jobspy",
+            source_platform="indeed",
             job_url="https://example.com/job/2",
             description="",
             job_type="",
@@ -125,6 +133,7 @@ class TestWatchlistRequest:
     def test_valid_company_name(self):
         req = WatchlistRequest(company_name="Siemens Healthineers")
         assert req.company_name == "Siemens Healthineers"
+        assert req.ats_platform is None
 
     def test_max_length_company_name(self):
         name = "A" * 100
@@ -145,3 +154,40 @@ class TestWatchlistRequest:
     def test_single_char_company_name(self):
         req = WatchlistRequest(company_name="A")
         assert req.company_name == "A"
+
+    def test_valid_ats_platform(self):
+        for platform in ("workday", "greenhouse", "lever", "ashby", "successfactors"):
+            req = WatchlistRequest(company_name="TestCo", ats_platform=platform)
+            assert req.ats_platform == platform
+
+    def test_invalid_ats_platform_rejected(self):
+        with pytest.raises(ValidationError):
+            WatchlistRequest(company_name="TestCo", ats_platform="invalid")
+
+    def test_ats_platform_none_by_default(self):
+        req = WatchlistRequest(company_name="TestCo")
+        assert req.ats_platform is None
+
+
+class TestWatchlistEntry:
+    def test_valid_entry_with_platform(self):
+        entry = WatchlistEntry(company_name="Philips", ats_platform="workday")
+        assert entry.company_name == "Philips"
+        assert entry.ats_platform == "workday"
+
+    def test_entry_without_platform(self):
+        entry = WatchlistEntry(company_name="SomeCo")
+        assert entry.company_name == "SomeCo"
+        assert entry.ats_platform is None
+
+
+class TestAtsGroupResponse:
+    def test_valid_group(self):
+        group = AtsGroupResponse(platform="workday", companies=["Philips", "Medtronic"])
+        assert group.platform == "workday"
+        assert group.companies == ["Philips", "Medtronic"]
+
+    def test_empty_companies_list(self):
+        group = AtsGroupResponse(platform="lever", companies=[])
+        assert group.platform == "lever"
+        assert group.companies == []

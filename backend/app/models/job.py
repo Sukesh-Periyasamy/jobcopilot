@@ -28,6 +28,8 @@ class JobRecord:
     salary: str = ""
     date_posted: str = ""
     search_term: str = ""
+    source_type: str = ""       # "jobspy" or "jobhive"
+    source_platform: str = ""   # linkedin, indeed, naukri, google, workday, greenhouse, lever, ashby, successfactors
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
@@ -75,6 +77,8 @@ class FilterCriteria:
     date_from: str | None = None
     date_to: str | None = None
     search_term: str | None = None
+    source_type: str | None = None
+    source_platform: str | None = None
 
 
 @dataclass

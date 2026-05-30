@@ -79,6 +79,8 @@ def _normalize_row(row: pd.Series, search_term: str) -> JobRecord | None:
         salary=salary,
         date_posted=date_posted,
         search_term=search_term,
+        source_type="jobspy",
+        source_platform=str(row.get("site", "") or "").strip().lower(),
         created_at=now_iso,
         updated_at=now_iso,
     )

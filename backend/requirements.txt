@@ -7,3 +7,5 @@ httpx
 hypothesis
 pytest
 pytest-asyncio
+jobhive-py
+openpyxl

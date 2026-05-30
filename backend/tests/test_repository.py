@@ -73,8 +73,8 @@ class TestEnsureIndexes:
     def test_creates_jobs_indexes(self, repo, mock_db):
         mock_db.jobs.create_indexes.assert_called_once()
         call_args = mock_db.jobs.create_indexes.call_args[0][0]
-        # Should have 5 indexes: job_url unique, date_posted, source, company, text
-        assert len(call_args) == 5
+        # Should have 7 indexes: job_url unique, date_posted, source, company, text, source_type, source_platform
+        assert len(call_args) == 7
 
     def test_creates_saved_jobs_index(self, repo, mock_db):
         mock_db.saved_jobs.create_index.assert_called_once_with("job_url", unique=True)
@@ -99,7 +99,17 @@ class TestSeedDefaultWatchlist:
         assert "Medtronic" in names
         assert "Abbott" in names
         assert "Dozee" in names
-        assert len(names) == 6
+        assert "Niramai" in names
+        assert len(names) == 13
+        # Verify ats_platform is included
+        platforms = {d["company_name"]: d["ats_platform"] for d in docs}
+        assert platforms["Philips"] == "workday"
+        assert platforms["Siemens Healthineers"] == "successfactors"
+        assert platforms["Dozee"] == "lever"
+        assert platforms["Niramai"] == "greenhouse"
+        # Verify tier is included
+        tiers = {d["company_name"]: d["tier"] for d in docs}
+        assert tiers["Philips"] == "tier3"
 
     def test_does_not_seed_when_not_empty(self, mock_db):
         mock_db.watchlist.count_documents.return_value = 3
@@ -348,13 +358,16 @@ class TestWatchlist:
 
     def test_get_watchlist(self, repo, mock_db):
         mock_db.watchlist.find.return_value = [
-            {"company_name": "Google"},
+            {"company_name": "Google", "ats_platform": "greenhouse", "tier": "tier1"},
             {"company_name": "Meta"},
         ]
 
         result = repo.get_watchlist()
 
-        assert result == ["Google", "Meta"]
+        assert result == [
+            {"company_name": "Google", "ats_platform": "greenhouse", "tier": "tier1"},
+            {"company_name": "Meta", "ats_platform": None, "tier": "tier3"},
+        ]
 
     def test_add_to_watchlist_success(self, repo, mock_db):
         mock_db.watchlist.count_documents.return_value = 5
@@ -363,6 +376,17 @@ class TestWatchlist:
         result = repo.add_to_watchlist("NewCompany")
 
         assert result is True
+
+    def test_add_to_watchlist_with_ats_platform(self, repo, mock_db):
+        mock_db.watchlist.count_documents.return_value = 5
+        mock_db.watchlist.insert_one.return_value = MagicMock()
+
+        result = repo.add_to_watchlist("NewCompany", ats_platform="workday")
+
+        assert result is True
+        doc = mock_db.watchlist.insert_one.call_args[0][0]
+        assert doc["company_name"] == "NewCompany"
+        assert doc["ats_platform"] == "workday"
 
     def test_add_to_watchlist_name_too_long(self, repo, mock_db):
         result = repo.add_to_watchlist("A" * 101)
@@ -400,6 +424,165 @@ class TestWatchlist:
         assert result is False
 
 
+class TestDocToJobRecordBackwardCompat:
+    """Tests for _doc_to_job_record backward compatibility with legacy documents."""
+
+    def test_legacy_doc_missing_source_type_defaults_to_jobspy(self, repo):
+        doc = {
+            "title": "Legacy Job",
+            "company": "OldCorp",
+            "location": "Mumbai",
+            "source": "LinkedIn",
+            "job_url": "https://example.com/legacy/1",
+            "description": "Old job",
+            "job_type": "full-time",
+            "salary": "",
+            "date_posted": "2023-06-01",
+            "search_term": "engineer",
+            "created_at": "2023-06-01T00:00:00+00:00",
+            "updated_at": "2023-06-01T00:00:00+00:00",
+        }
+
+        from app.database.repository import JobsRepository
+        record = JobsRepository._doc_to_job_record(doc)
+
+        assert record.source_type == "jobspy"
+
+    def test_legacy_doc_missing_source_platform_derived_from_source(self, repo):
+        doc = {
+            "title": "Legacy Job",
+            "company": "OldCorp",
+            "location": "Mumbai",
+            "source": "Indeed",
+            "job_url": "https://example.com/legacy/2",
+        }
+
+        from app.database.repository import JobsRepository
+        record = JobsRepository._doc_to_job_record(doc)
+
+        assert record.source_platform == "indeed"
+
+    def test_legacy_doc_source_platform_lowercased(self, repo):
+        doc = {
+            "title": "Job",
+            "company": "Co",
+            "location": "BLR",
+            "source": "NAUKRI",
+            "job_url": "https://example.com/legacy/3",
+        }
+
+        from app.database.repository import JobsRepository
+        record = JobsRepository._doc_to_job_record(doc)
+
+        assert record.source_platform == "naukri"
+
+    def test_doc_with_source_type_and_platform_uses_them(self, repo):
+        doc = {
+            "title": "New Job",
+            "company": "NewCorp",
+            "location": "Delhi",
+            "source": "workday",
+            "job_url": "https://example.com/new/1",
+            "source_type": "jobhive",
+            "source_platform": "workday",
+        }
+
+        from app.database.repository import JobsRepository
+        record = JobsRepository._doc_to_job_record(doc)
+
+        assert record.source_type == "jobhive"
+        assert record.source_platform == "workday"
+
+
+class TestGetExportJobs:
+    """Tests for get_export_jobs method."""
+
+    def test_returns_job_records_with_limit(self, repo, mock_db):
+        mock_cursor = MagicMock()
+        mock_cursor.sort.return_value = mock_cursor
+        mock_cursor.limit.return_value = mock_cursor
+        mock_cursor.__iter__ = MagicMock(return_value=iter([
+            {"title": "Job 1", "company": "Co", "location": "BLR",
+             "source": "linkedin", "job_url": "http://x.com/1"},
+            {"title": "Job 2", "company": "Co2", "location": "MUM",
+             "source": "indeed", "job_url": "http://x.com/2"},
+        ]))
+        mock_db.jobs.find.return_value = mock_cursor
+
+        filters = FilterCriteria()
+        result = repo.get_export_jobs(filters)
+
+        assert len(result) == 2
+        assert all(isinstance(r, JobRecord) for r in result)
+        mock_cursor.limit.assert_called_once_with(10000)
+
+    def test_export_jobs_applies_sort(self, repo, mock_db):
+        mock_cursor = MagicMock()
+        mock_cursor.sort.return_value = mock_cursor
+        mock_cursor.limit.return_value = mock_cursor
+        mock_cursor.__iter__ = MagicMock(return_value=iter([]))
+        mock_db.jobs.find.return_value = mock_cursor
+
+        filters = FilterCriteria()
+        repo.get_export_jobs(filters)
+
+        mock_cursor.sort.assert_called_once_with("date_posted", -1)
+
+    def test_export_jobs_empty_result(self, repo, mock_db):
+        mock_cursor = MagicMock()
+        mock_cursor.sort.return_value = mock_cursor
+        mock_cursor.limit.return_value = mock_cursor
+        mock_cursor.__iter__ = MagicMock(return_value=iter([]))
+        mock_db.jobs.find.return_value = mock_cursor
+
+        filters = FilterCriteria()
+        result = repo.get_export_jobs(filters)
+
+        assert result == []
+
+
+class TestGetWatchlistGroupedByAts:
+    """Tests for get_watchlist_grouped_by_ats method."""
+
+    def test_groups_companies_by_platform(self, repo, mock_db):
+        mock_db.watchlist.find.return_value = [
+            {"company_name": "Philips", "ats_platform": "workday"},
+            {"company_name": "Medtronic", "ats_platform": "workday"},
+            {"company_name": "Dozee", "ats_platform": "lever"},
+            {"company_name": "Niramai", "ats_platform": "greenhouse"},
+        ]
+
+        result = repo.get_watchlist_grouped_by_ats()
+
+        # Convert to dict for easier assertion
+        groups = {g["platform"]: g["companies"] for g in result}
+        assert "workday" in groups
+        assert set(groups["workday"]) == {"Philips", "Medtronic"}
+        assert groups["lever"] == ["Dozee"]
+        assert groups["greenhouse"] == ["Niramai"]
+
+    def test_excludes_companies_without_platform(self, repo, mock_db):
+        mock_db.watchlist.find.return_value = [
+            {"company_name": "Philips", "ats_platform": "workday"},
+        ]
+
+        result = repo.get_watchlist_grouped_by_ats()
+
+        # Only companies with ats_platform should appear
+        all_companies = []
+        for group in result:
+            all_companies.extend(group["companies"])
+        assert "Philips" in all_companies
+        assert len(all_companies) == 1
+
+    def test_empty_watchlist_returns_empty(self, repo, mock_db):
+        mock_db.watchlist.find.return_value = []
+
+        result = repo.get_watchlist_grouped_by_ats()
+
+        assert result == []
+
+
 class TestGetStats:
     """Tests for get_stats method."""
 
@@ -417,3 +600,188 @@ class TestGetStats:
         assert stats["saved_jobs"] == 10
         assert stats["applied_jobs"] == 3
         assert stats["companies_tracked"] == 6
+
+
+# Feature: jobcopilot-v1.1-upgrade, Property 4: Backward Compatibility Defaults
+# Validates: Requirements 3.5
+
+from hypothesis import given, settings
+from hypothesis import strategies as st
+
+from app.database.repository import JobsRepository
+
+# Strategy for source values that legacy documents might contain
+_legacy_sources = st.sampled_from(["linkedin", "indeed", "naukri", "google", "LinkedIn", "Indeed"])
+
+# Strategy for optional string fields (either missing or present)
+_optional_str = st.one_of(st.none(), st.text(min_size=0, max_size=50))
+
+
+@st.composite
+def legacy_mongo_documents(draw):
+    """Generate legacy MongoDB documents that lack source_type and source_platform."""
+    source = draw(_legacy_sources)
+    doc = {
+        "title": draw(st.text(min_size=1, max_size=100)),
+        "company": draw(st.text(min_size=1, max_size=100)),
+        "location": draw(st.text(min_size=1, max_size=100)),
+        "source": source,
+        "job_url": draw(st.text(min_size=1, max_size=200)),
+    }
+
+    # Optionally include other fields (but NEVER source_type or source_platform)
+    description = draw(_optional_str)
+    if description is not None:
+        doc["description"] = description
+
+    job_type = draw(_optional_str)
+    if job_type is not None:
+        doc["job_type"] = job_type
+
+    salary = draw(_optional_str)
+    if salary is not None:
+        doc["salary"] = salary
+
+    date_posted = draw(_optional_str)
+    if date_posted is not None:
+        doc["date_posted"] = date_posted
+
+    search_term = draw(_optional_str)
+    if search_term is not None:
+        doc["search_term"] = search_term
+
+    created_at = draw(_optional_str)
+    if created_at is not None:
+        doc["created_at"] = created_at
+
+    updated_at = draw(_optional_str)
+    if updated_at is not None:
+        doc["updated_at"] = updated_at
+
+    return doc
+
+
+class TestBackwardCompatibilityDefaults:
+    """Property test: legacy documents get correct default source_type and source_platform."""
+
+    @given(doc=legacy_mongo_documents())
+    @settings(max_examples=100)
+    def test_legacy_doc_defaults(self, doc):
+        """
+        **Validates: Requirements 3.5**
+
+        For any legacy MongoDB document missing source_type and source_platform:
+        - source_type must default to "jobspy"
+        - source_platform must equal doc["source"].strip().lower()
+        """
+        result = JobsRepository._doc_to_job_record(doc)
+
+        assert result.source_type == "jobspy"
+        assert result.source_platform == doc["source"].strip().lower()
+
+
+# Feature: jobcopilot-v1.1-upgrade, Property 8: ATS-Info Grouping Correctness
+# Validates: Requirements 6.5
+
+_ats_platforms = st.sampled_from(["workday", "greenhouse", "lever", "ashby", "successfactors", None])
+
+
+@st.composite
+def watchlist_entries(draw):
+    """Generate a list of watchlist entries with unique company names and various ats_platform values."""
+    # Generate between 0 and 30 entries with unique company names
+    num_entries = draw(st.integers(min_value=0, max_value=30))
+    names = draw(
+        st.lists(
+            st.text(alphabet=st.characters(whitelist_categories=("L", "N", "Zs")), min_size=1, max_size=50),
+            min_size=num_entries,
+            max_size=num_entries,
+            unique=True,
+        )
+    )
+    entries = []
+    for name in names:
+        platform = draw(_ats_platforms)
+        entries.append({"company_name": name, "ats_platform": platform})
+    return entries
+
+
+class TestAtsInfoGroupingCorrectness:
+    """Property test: ATS-info grouping returns correct groups."""
+
+    @given(entries=watchlist_entries())
+    @settings(max_examples=100)
+    def test_ats_info_grouping(self, entries):
+        """
+        **Validates: Requirements 6.5**
+
+        For any set of watchlist entries with various ats_platform values:
+        - Every company in a group has the corresponding ats_platform value
+        - Every company with a non-null ats_platform appears in exactly one group
+        - Companies with null ats_platform do NOT appear in any group
+        """
+        # Filter entries the way the repository method does: only non-null ats_platform
+        filtered_entries = [
+            e for e in entries if e["ats_platform"] is not None
+        ]
+
+        with patch("app.database.repository.get_database") as mock_get_db:
+            mock_db = MagicMock()
+            mock_db.__getitem__ = MagicMock(side_effect=lambda name: {
+                "jobs": mock_db.jobs,
+                "saved_jobs": mock_db.saved_jobs,
+                "applied_jobs": mock_db.applied_jobs,
+                "company_watchlist": mock_db.watchlist,
+                "scrape_history": mock_db.scrape_history,
+            }.get(name, MagicMock()))
+            mock_db.jobs = MagicMock()
+            mock_db.saved_jobs = MagicMock()
+            mock_db.applied_jobs = MagicMock()
+            mock_db.watchlist = MagicMock()
+            mock_db.scrape_history = MagicMock()
+            mock_db.watchlist.count_documents.return_value = 0
+            mock_get_db.return_value = mock_db
+
+            repo = JobsRepository()
+
+            # Mock the find() call used by get_watchlist_grouped_by_ats
+            mock_db.watchlist.find.return_value = filtered_entries
+
+            result = repo.get_watchlist_grouped_by_ats()
+
+        # Build a lookup from entries: company_name -> ats_platform
+        platform_by_company = {e["company_name"]: e["ats_platform"] for e in entries}
+
+        # Property 1: Every company in a group has the corresponding ats_platform value
+        for group in result:
+            platform = group["platform"]
+            for company in group["companies"]:
+                assert platform_by_company[company] == platform, (
+                    f"Company '{company}' is in group '{platform}' but has platform "
+                    f"'{platform_by_company[company]}'"
+                )
+
+        # Property 2: Every company with a non-null ats_platform appears in exactly one group
+        all_grouped_companies = []
+        for group in result:
+            all_grouped_companies.extend(group["companies"])
+
+        companies_with_platform = {
+            e["company_name"] for e in entries if e["ats_platform"] is not None
+        }
+        assert set(all_grouped_companies) == companies_with_platform, (
+            "Not all companies with non-null platform appear in groups"
+        )
+        # Check no duplicates (exactly one group)
+        assert len(all_grouped_companies) == len(set(all_grouped_companies)), (
+            "Some companies appear in more than one group"
+        )
+
+        # Property 3: Companies with null ats_platform do NOT appear in any group
+        companies_without_platform = {
+            e["company_name"] for e in entries if e["ats_platform"] is None
+        }
+        grouped_set = set(all_grouped_companies)
+        assert grouped_set.isdisjoint(companies_without_platform), (
+            "Companies with null ats_platform should not appear in any group"
+        )

@@ -10,6 +10,7 @@
 
   const watchlistContainer = document.getElementById('watchlist-container');
   const inputCompanyName = document.getElementById('input-company-name');
+  const inputAtsPlatform = document.getElementById('input-ats-platform');
   const btnAddCompany = document.getElementById('btn-add-company');
   const watchlistStatus = document.getElementById('watchlist-status');
 
@@ -29,6 +30,27 @@
   let currentWatchlist = [];
 
   /**
+   * Create an ATS platform badge element.
+   * @param {string|null} platform - ATS platform identifier or null
+   * @returns {HTMLElement} Badge span element
+   */
+  function createAtsBadge(platform) {
+    var colorMap = {
+      workday: 'orange',
+      greenhouse: 'teal',
+      lever: 'indigo',
+      ashby: 'pink',
+      successfactors: 'amber',
+    };
+    var badge = document.createElement('span');
+    var label = platform ? platform.charAt(0).toUpperCase() + platform.slice(1) : 'Unknown';
+    var color = platform ? (colorMap[platform] || 'gray') : 'gray';
+    badge.className = 'badge badge--pill badge--' + color;
+    badge.textContent = label;
+    return badge;
+  }
+
+  /**
    * Load and render the watchlist.
    */
   async function loadWatchlist() {
@@ -44,9 +66,16 @@
     // API may return array of strings or array of objects
     var data = result.data || [];
     if (data.length > 0 && typeof data[0] === 'object') {
-      currentWatchlist = data.map(function (item) { return item.company_name || item.name || ''; });
+      currentWatchlist = data.map(function (item) {
+        return {
+          company_name: item.company_name || item.name || '',
+          ats_platform: item.ats_platform || null,
+        };
+      });
     } else {
-      currentWatchlist = data;
+      currentWatchlist = data.map(function (name) {
+        return { company_name: name, ats_platform: null };
+      });
     }
 
     renderWatchlist();
@@ -64,19 +93,23 @@
       return;
     }
 
-    const headers = ['#', 'Company Name', 'Actions'];
-    const rows = currentWatchlist.map(function (company, index) {
+    const headers = ['#', 'Company Name', 'ATS Platform', 'Actions'];
+    const rows = currentWatchlist.map(function (entry, index) {
+      // ATS platform badge
+      var atsBadge = createAtsBadge(entry.ats_platform);
+
       // Remove button
       var removeBtn = document.createElement('button');
       removeBtn.className = 'btn btn--danger btn--sm';
       removeBtn.textContent = 'Remove';
       removeBtn.addEventListener('click', function () {
-        handleRemoveCompany(company, removeBtn);
+        handleRemoveCompany(entry.company_name, removeBtn);
       });
 
       return [
         String(index + 1),
-        company,
+        entry.company_name,
+        atsBadge,
         removeBtn,
       ];
     });
@@ -98,6 +131,7 @@
    */
   async function handleAddCompany() {
     var name = inputCompanyName.value.trim();
+    var atsPlatform = inputAtsPlatform.value || null;
 
     // Client-side validation
     if (!name) {
@@ -116,8 +150,8 @@
     }
 
     // Check for duplicates (case-insensitive)
-    var isDuplicate = currentWatchlist.some(function (c) {
-      return c.toLowerCase() === name.toLowerCase();
+    var isDuplicate = currentWatchlist.some(function (entry) {
+      return entry.company_name.toLowerCase() === name.toLowerCase();
     });
     if (isDuplicate) {
       UI.showToast('Company already in watchlist', 'info');
@@ -127,13 +161,14 @@
     btnAddCompany.disabled = true;
     btnAddCompany.textContent = 'Adding...';
 
-    var result = await API.addToWatchlist(name);
+    var result = await API.addToWatchlist(name, atsPlatform);
 
     btnAddCompany.disabled = false;
     btnAddCompany.textContent = 'Add Company';
 
     if (result.ok) {
       inputCompanyName.value = '';
+      inputAtsPlatform.value = '';
       UI.showToast(name + ' added to watchlist', 'success');
       loadWatchlist();
     } else {

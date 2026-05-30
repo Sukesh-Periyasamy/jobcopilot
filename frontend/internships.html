@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JobCopilot — Internships</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Navigation Bar -->
+  <nav class="navbar" role="navigation" aria-label="Main navigation">
+    <div class="navbar__brand">🚀 JobCopilot</div>
+    <ul class="navbar__nav">
+      <li><a href="index.html" class="navbar__link">Dashboard</a></li>
+      <li><a href="jobs.html" class="navbar__link">Jobs</a></li>
+      <li><a href="saved.html" class="navbar__link">Saved</a></li>
+      <li><a href="watchlist.html" class="navbar__link">Watchlist</a></li>
+      <li><a href="analytics.html" class="navbar__link">Analytics</a></li>
+      <li><a href="internships.html" class="navbar__link navbar__link--active" aria-current="page">Internships</a></li>
+      <li><a href="settings.html" class="navbar__link">Settings</a></li>
+    </ul>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <header class="page-header">
+      <h1 class="page-header__title">Internships</h1>
+      <p class="page-header__subtitle">Browse internship, trainee, and early-career opportunities</p>
+    </header>
+
+    <!-- Filter Controls -->
+    <section class="card mb-lg" aria-label="Filters">
+      <div class="filter-row">
+        <div class="form-group">
+          <label class="form-label" for="filter-keyword">Internship Type</label>
+          <select id="filter-keyword" class="form-input form-input--select">
+            <option value="">All</option>
+            <option value="Internship">Internship</option>
+            <option value="Trainee">Trainee</option>
+            <option value="Graduate Engineer">Graduate Engineer</option>
+            <option value="Research Intern">Research Intern</option>
+            <option value="Project Associate">Project Associate</option>
+            <option value="Project Assistant">Project Assistant</option>
+            <option value="JRF">JRF</option>
+            <option value="SRF">SRF</option>
+            <option value="RA">RA</option>
+            <option value="Summer Internship">Summer Internship</option>
+            <option value="Industrial Trainee">Industrial Trainee</option>
+            <option value="Associate Engineer">Associate Engineer</option>
+            <option value="Graduate Trainee">Graduate Trainee</option>
+            <option value="Young Professional">Young Professional</option>
+            <option value="Project Engineer">Project Engineer</option>
+          </select>
+        </div>
+        <div class="form-group" style="justify-content: flex-end;">
+          <button id="btn-apply-filter" class="btn btn--primary">Apply Filter</button>
+        </div>
+        <div class="form-group" style="justify-content: flex-end;">
+          <button id="btn-clear-filter" class="btn btn--secondary">Clear</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Internship Listings -->
+    <section aria-label="Internship listings">
+      <div id="internships-container">
+        <!-- Skeleton loaders shown while loading -->
+        <div class="skeleton skeleton--row"></div>
+        <div class="skeleton skeleton--row"></div>
+        <div class="skeleton skeleton--row"></div>
+        <div class="skeleton skeleton--row"></div>
+        <div class="skeleton skeleton--row"></div>
+        <div class="skeleton skeleton--row"></div>
+      </div>
+    </section>
+
+    <!-- Pagination -->
+    <div id="pagination-container"></div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/components.js"></script>
+  <script src="js/internships.js"></script>
+</body>
+</html>

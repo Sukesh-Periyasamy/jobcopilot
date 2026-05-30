@@ -27,6 +27,8 @@ def _job_record_to_response(record) -> JobResponse:
         company=record.company,
         location=record.location,
         source=record.source,
+        source_type=record.source_type,
+        source_platform=record.source_platform,
         job_url=record.job_url,
         description=record.description,
         job_type=record.job_type,
@@ -50,6 +52,8 @@ def get_jobs(
     date_from: Optional[str] = Query(None, description="Filter from date (YYYY-MM-DD)"),
     date_to: Optional[str] = Query(None, description="Filter to date (YYYY-MM-DD)"),
     search_term: Optional[str] = Query(None, description="Filter by search term"),
+    source_type: Optional[str] = Query(None, description="Filter by source type (jobspy or jobhive)"),
+    source_platform: Optional[str] = Query(None, description="Filter by source platform"),
 ) -> PaginatedJobsResponse:
     """Get paginated jobs with optional filters."""
     try:
@@ -63,6 +67,8 @@ def get_jobs(
             date_from=date_from,
             date_to=date_to,
             search_term=search_term,
+            source_type=source_type,
+            source_platform=source_platform,
         )
         result = repo.get_jobs(filters, page=page, page_size=page_size)
         jobs = [_job_record_to_response(j) for j in result.jobs]

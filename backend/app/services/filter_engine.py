@@ -41,6 +41,23 @@ def build_query(criteria: FilterCriteria) -> dict:
             {"search_term": {"$regex": f"^{re.escape(criteria.search_term)}$", "$options": "i"}}
         )
 
+    # Source type: case-insensitive exact match
+    if criteria.source_type:
+        conditions.append(
+            {"source_type": {"$regex": f"^{re.escape(criteria.source_type)}$", "$options": "i"}}
+        )
+
+    # Source platform: case-insensitive exact match, with special "ats" umbrella value
+    if criteria.source_platform:
+        if criteria.source_platform.lower() == "ats":
+            conditions.append(
+                {"source_platform": {"$in": ["greenhouse", "lever", "ashby", "workday", "successfactors"]}}
+            )
+        else:
+            conditions.append(
+                {"source_platform": {"$regex": f"^{re.escape(criteria.source_platform)}$", "$options": "i"}}
+            )
+
     # Case-insensitive substring match fields
     if criteria.location:
         conditions.append(

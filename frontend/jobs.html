@@ -33,10 +33,16 @@
           <label class="form-label" for="filter-source">Source</label>
           <select id="filter-source" class="form-input form-input--select">
             <option value="">All Sources</option>
-            <option value="linkedin">LinkedIn</option>
-            <option value="indeed">Indeed</option>
-            <option value="naukri">Naukri</option>
-            <option value="google">Google</option>
+            <option value="linkedin" data-filter="source_platform">LinkedIn Jobs</option>
+            <option value="indeed" data-filter="source_platform">Indeed Jobs</option>
+            <option value="naukri" data-filter="source_platform">Naukri Jobs</option>
+            <option value="google" data-filter="source_platform">Google Jobs</option>
+            <option value="ats" data-filter="source_platform">ATS Jobs</option>
+            <option value="workday" data-filter="source_platform">Workday Jobs</option>
+            <option value="greenhouse" data-filter="source_platform">Greenhouse Jobs</option>
+            <option value="lever" data-filter="source_platform">Lever Jobs</option>
+            <option value="ashby" data-filter="source_platform">Ashby Jobs</option>
+            <option value="successfactors" data-filter="source_platform">SuccessFactors Jobs</option>
           </select>
         </div>
         <div class="form-group">
@@ -74,6 +80,12 @@
         </div>
         <div class="form-group" style="justify-content: flex-end;">
           <button id="btn-clear-filters" class="btn btn--secondary">Clear</button>
+        </div>
+        <div class="form-group" style="justify-content: flex-end;">
+          <button id="btn-export-csv" class="btn btn--secondary btn--sm">📥 CSV</button>
+        </div>
+        <div class="form-group" style="justify-content: flex-end;">
+          <button id="btn-export-xlsx" class="btn btn--secondary btn--sm">📥 XLSX</button>
         </div>
       </div>
     </section>

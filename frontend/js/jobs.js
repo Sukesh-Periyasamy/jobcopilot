@@ -20,6 +20,8 @@
   const filterDateTo = document.getElementById('filter-date-to');
   const btnApplyFilters = document.getElementById('btn-apply-filters');
   const btnClearFilters = document.getElementById('btn-clear-filters');
+  const btnExportCsv = document.getElementById('btn-export-csv');
+  const btnExportXlsx = document.getElementById('btn-export-xlsx');
 
   let currentPage = 1;
   const pageSize = 50;
@@ -28,8 +30,11 @@
    * Gather current filter values.
    */
   function getFilters() {
-    return {
-      source: filterSource.value,
+    var selectedOption = filterSource.options[filterSource.selectedIndex];
+    var filterType = selectedOption.getAttribute('data-filter') || 'source';
+    var filterValue = filterSource.value;
+
+    var filters = {
       location: filterLocation.value.trim(),
       company: filterCompany.value.trim(),
       keyword: filterKeyword.value.trim(),
@@ -37,6 +42,12 @@
       date_from: filterDateFrom.value,
       date_to: filterDateTo.value,
     };
+
+    if (filterValue) {
+      filters[filterType] = filterValue;
+    }
+
+    return filters;
   }
 
   /**
@@ -120,7 +131,7 @@
         job.title || '—',
         job.company || '—',
         job.location || 'Remote',
-        job.source || '—',
+        UI.createSourceBadge(job),
         job.date_posted || '—',
         badge,
         actionsDiv,
@@ -178,6 +189,46 @@
     }
   }
 
+  /**
+   * Handle export button click (CSV or XLSX).
+   */
+  async function handleExport(format) {
+    var btn = format === 'csv' ? btnExportCsv : btnExportXlsx;
+    var originalText = btn.textContent;
+
+    // Disable both buttons and show loading
+    btnExportCsv.disabled = true;
+    btnExportXlsx.disabled = true;
+    btn.textContent = '⏳ Exporting...';
+
+    var filters = getFilters();
+    var result = format === 'csv'
+      ? await API.exportJobsCsv(filters)
+      : await API.exportJobsXlsx(filters);
+
+    // Re-enable buttons
+    btnExportCsv.disabled = false;
+    btnExportXlsx.disabled = false;
+    btn.textContent = originalText;
+
+    if (result.ok) {
+      // Trigger file download
+      var extension = format === 'csv' ? 'csv' : 'xlsx';
+      var filename = 'jobs_export_' + new Date().toISOString().split('T')[0] + '.' + extension;
+      var url = URL.createObjectURL(result.blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      UI.showToast('Export downloaded successfully', 'success');
+    } else {
+      UI.showToast(result.error || 'Export failed', 'error');
+    }
+  }
+
   // Event listeners
   btnApplyFilters.addEventListener('click', function () {
     loadJobs(1);
@@ -193,6 +244,9 @@
     filterDateTo.value = '';
     loadJobs(1);
   });
+
+  btnExportCsv.addEventListener('click', function () { handleExport('csv'); });
+  btnExportXlsx.addEventListener('click', function () { handleExport('xlsx'); });
 
   // Allow Enter key to trigger filter
   [filterLocation, filterCompany, filterKeyword].forEach(function (input) {

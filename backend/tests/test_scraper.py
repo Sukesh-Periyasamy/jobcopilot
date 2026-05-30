@@ -7,6 +7,8 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
+from hypothesis import given, settings as hyp_settings
+from hypothesis import strategies as st
 
 from app.config.settings import Settings
 from app.models.job import JobRecord, ScrapeResult
@@ -94,8 +96,49 @@ class TestNormalizeRow:
         assert "2000000" in record.salary
         assert record.date_posted == "2024-01-15"
         assert record.search_term == "Python Developer"
+        assert record.source_type == "jobspy"
+        assert record.source_platform == "linkedin"
         assert record.created_at != ""
         assert record.updated_at != ""
+
+    def test_source_metadata_fields(self, sample_df):
+        """source_type is 'jobspy' and source_platform is lowercase site value."""
+        # Row with site="linkedin"
+        row0 = sample_df.iloc[0]
+        record0 = _normalize_row(row0, "test")
+        assert record0 is not None
+        assert record0.source_type == "jobspy"
+        assert record0.source_platform == "linkedin"
+
+        # Row with site="indeed"
+        row1 = sample_df.iloc[1]
+        record1 = _normalize_row(row1, "test")
+        assert record1 is not None
+        assert record1.source_type == "jobspy"
+        assert record1.source_platform == "indeed"
+
+    def test_source_platform_lowercased(self):
+        """source_platform is always lowercased from the site field."""
+        row = pd.Series({
+            "title": "Engineer",
+            "job_url": "https://example.com/1",
+            "site": "LinkedIn",
+        })
+        record = _normalize_row(row, "test")
+        assert record is not None
+        assert record.source_type == "jobspy"
+        assert record.source_platform == "linkedin"
+
+    def test_source_platform_empty_when_site_missing(self):
+        """source_platform defaults to empty string when site is missing."""
+        row = pd.Series({
+            "title": "Engineer",
+            "job_url": "https://example.com/1",
+        })
+        record = _normalize_row(row, "test")
+        assert record is not None
+        assert record.source_type == "jobspy"
+        assert record.source_platform == ""
 
     def test_missing_optional_fields_default_to_empty(self, sample_df):
         """Missing optional fields are set to empty string."""
@@ -281,3 +324,76 @@ class TestScrapeAll:
 
         assert len(result.jobs) == 0
         assert len(result.errors) == 4  # 2 terms × 2 locations
+
+# ---------------------------------------------------------------------------
+# Property-Based Tests
+# ---------------------------------------------------------------------------
+
+# Feature: jobcopilot-v1.1-upgrade, Property 2: JobSpy Normalization Correctness
+
+
+# Strategies for generating random DataFrame rows
+_SITE_VALUES = st.sampled_from(
+    ["linkedin", "indeed", "naukri", "google", "LinkedIn", "Indeed", "NAUKRI", "Google"]
+)
+
+_non_empty_text = st.text(min_size=1, max_size=50).filter(lambda s: s.strip() != "")
+
+
+@st.composite
+def jobspy_row(draw):
+    """Generate a random pd.Series mimicking a JobSpy DataFrame row."""
+    title = draw(_non_empty_text)
+    job_url = draw(_non_empty_text)
+    site = draw(_SITE_VALUES)
+
+    data = {
+        "title": title,
+        "job_url": job_url,
+        "site": site,
+    }
+
+    # Optional fields
+    if draw(st.booleans()):
+        data["company"] = draw(st.text(max_size=30))
+    if draw(st.booleans()):
+        data["location"] = draw(st.text(max_size=30))
+    if draw(st.booleans()):
+        data["description"] = draw(st.text(max_size=100))
+    if draw(st.booleans()):
+        data["job_type"] = draw(st.text(max_size=20))
+    if draw(st.booleans()):
+        data["min_amount"] = draw(st.one_of(st.none(), st.floats(min_value=0, max_value=1e7, allow_nan=False)))
+    if draw(st.booleans()):
+        data["max_amount"] = draw(st.one_of(st.none(), st.floats(min_value=0, max_value=1e7, allow_nan=False)))
+    if draw(st.booleans()):
+        data["currency"] = draw(st.one_of(st.none(), st.sampled_from(["INR", "USD", "EUR", ""])))
+    if draw(st.booleans()):
+        data["interval"] = draw(st.one_of(st.none(), st.sampled_from(["yearly", "monthly", "hourly", ""])))
+    if draw(st.booleans()):
+        data["date_posted"] = draw(st.one_of(st.none(), st.just("2024-01-15"), st.just("")))
+
+    return pd.Series(data)
+
+
+class TestJobSpyNormalizationProperty:
+    """Property-based tests for JobSpy normalization correctness.
+
+    **Validates: Requirements 3.3**
+    """
+
+    @given(row=jobspy_row(), search_term=_non_empty_text)
+    @hyp_settings(max_examples=100)
+    def test_jobspy_normalization_source_metadata(self, row, search_term):
+        """For any valid JobSpy row with non-empty title and job_url,
+        _normalize_row produces a JobRecord with source_type='jobspy'
+        and source_platform equal to the lowercase site value.
+
+        **Validates: Requirements 3.3**
+        """
+        result = _normalize_row(row, search_term)
+
+        # The row always has non-empty title and job_url by construction
+        assert result is not None, "Expected a valid JobRecord for non-empty title and job_url"
+        assert result.source_type == "jobspy"
+        assert result.source_platform == row["site"].strip().lower()
