@@ -177,6 +177,37 @@ def _run_workflow() -> None:
     except Exception as exc:
         logger.error("Intelligence summary failed (non-fatal): %s", exc)
 
+    # 11. Send Career Radar top matches via Telegram
+    try:
+        from app.services.career_radar import CareerRadarService
+
+        radar = CareerRadarService()
+        top_jobs = radar.get_telegram_summary()
+
+        if top_jobs and notifier._enabled:
+            header = "🎯 *Career Radar — Top Matches*\n\n"
+            entries = []
+            for i, job in enumerate(top_jobs, 1):
+                entries.append(
+                    f"{i}. ⭐ *{job['title']}*\n"
+                    f"   🏢 {job['company']} | 📍 {job['location']}\n"
+                    f"   Score: {job['score']} | {', '.join(job.get('collections', [])[:2])}\n"
+                    f"   🔗 {job['job_url']}\n"
+                )
+            message = header + "\n".join(entries)
+            if len(message) <= 4096:
+                notifier._send_message(message)
+            else:
+                # Split if too long
+                messages = notifier._split_messages(header, entries)
+                for msg in messages:
+                    notifier._send_message(msg)
+            logger.info("Sent Career Radar summary with %d top matches.", len(top_jobs))
+        else:
+            logger.info("No high-priority career radar matches to send.")
+    except Exception as exc:
+        logger.error("Career Radar telegram failed (non-fatal): %s", exc)
+
 
 def main() -> None:
     """Entry point for the daily scraper cron job.

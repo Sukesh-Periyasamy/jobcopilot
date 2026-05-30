@@ -1,15 +1,14 @@
 """Career Radar service for personalized job scoring and ranking.
 
 Scores every job based on collection weights, freshness, location,
-and watchlist company matching. Returns categorized top matches
-for the user's career profile.
+and watchlist company matching. Applies negative keyword penalties
+and minimum score filtering to reduce noise.
 """
 
 from __future__ import annotations
 
 import logging
-import re
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from app.database.connection import get_database
 from app.database.repository import JobsRepository
@@ -35,6 +34,31 @@ COLLECTION_WEIGHTS: dict[str, int] = {
     "Diagnostics and Biosensors": 7,
     "Product Management": 5,
 }
+
+# Negative keywords — penalize irrelevant roles
+NEGATIVE_KEYWORDS: list[str] = [
+    "sales",
+    "account executive",
+    "recruiter",
+    "customer success",
+    "business development representative",
+    "SDR",
+    "BDR",
+    "real estate",
+    "financial advisor",
+    "insurance agent",
+    "content writer",
+    "social media manager",
+    "graphic designer",
+]
+NEGATIVE_PENALTY = 15
+
+# Minimum score to be considered a match
+MIN_SCORE = 15
+
+# High priority threshold for /career-radar/top
+HIGH_PRIORITY_SCORE = 25
+HIGH_PRIORITY_MAX_DAYS = 14
 
 # Freshness bonuses
 FRESHNESS_BONUSES = [
@@ -63,31 +87,7 @@ class CareerRadarService:
             Dict with keys: top_matches, research_matches, internships,
             watchlist_matches, remote_matches, stats.
         """
-        db = get_database()
-        jobs_collection = db["jobs"]
-
-        # Get all jobs
-        cursor = jobs_collection.find({}, {"_id": 0})
-        all_jobs = list(cursor)
-
-        # Get watchlist companies
-        repo = JobsRepository()
-        watchlist = repo.get_watchlist()
-        watchlist_companies = {
-            entry["company_name"].lower() for entry in watchlist
-        }
-
-        # Score all jobs
-        scored_jobs = []
-        for job in all_jobs:
-            score, collections = self._score_job(job, watchlist_companies)
-            if score > 0:
-                job["_score"] = score
-                job["_collections"] = collections
-                scored_jobs.append(job)
-
-        # Sort by score descending
-        scored_jobs.sort(key=lambda j: j["_score"], reverse=True)
+        scored_jobs, total_count = self._score_all_jobs()
 
         # Categorize
         top_matches = scored_jobs[:MAX_RESULTS_PER_CATEGORY]
@@ -102,6 +102,7 @@ class CareerRadarService:
             if self._is_internship(j)
         ][:MAX_RESULTS_PER_CATEGORY]
 
+        watchlist_companies = self._get_watchlist_companies()
         watchlist_matches = [
             j for j in scored_jobs
             if j.get("company", "").lower() in watchlist_companies
@@ -119,10 +120,104 @@ class CareerRadarService:
             "watchlist_matches": [self._format_job(j) for j in watchlist_matches],
             "remote_matches": [self._format_job(j) for j in remote_matches],
             "stats": {
-                "total_scored": len(all_jobs),
+                "total_scored": total_count,
                 "matches_found": len(scored_jobs),
             },
         }
+
+    def get_top_priority(self) -> dict:
+        """Return only high-priority actionable matches.
+
+        Filters: score >= 25, posted <= 14 days, not already applied/saved.
+
+        Returns:
+            Dict with high_priority list and stats.
+        """
+        scored_jobs, total_count = self._score_all_jobs()
+
+        # Get applied and saved job URLs to exclude
+        repo = JobsRepository()
+        applied_urls = {j.get("job_url") for j in repo.get_applied_jobs()}
+        saved_urls = {j.get("job_url") for j in repo.get_saved_jobs()}
+        excluded_urls = applied_urls | saved_urls
+
+        now = datetime.now(timezone.utc)
+        high_priority = []
+
+        for job in scored_jobs:
+            # Score threshold
+            if job.get("_score", 0) < HIGH_PRIORITY_SCORE:
+                break  # Already sorted desc, no more will qualify
+
+            # Freshness threshold
+            date_posted = job.get("date_posted", "")
+            if date_posted:
+                try:
+                    posted = datetime.strptime(date_posted, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                    if (now - posted).days > HIGH_PRIORITY_MAX_DAYS:
+                        continue
+                except (ValueError, TypeError):
+                    continue
+            else:
+                continue
+
+            # Exclude already applied/saved
+            if job.get("job_url") in excluded_urls:
+                continue
+
+            high_priority.append(self._format_job(job))
+
+            if len(high_priority) >= MAX_RESULTS_PER_CATEGORY:
+                break
+
+        return {
+            "high_priority": high_priority,
+            "stats": {
+                "total_scored": total_count,
+                "matches_found": len(scored_jobs),
+                "high_priority_count": len(high_priority),
+            },
+        }
+
+    def get_telegram_summary(self) -> list[dict]:
+        """Return top 10 matches formatted for Telegram notification.
+
+        Returns:
+            List of top 10 job dicts with score, title, company, location, job_url.
+        """
+        result = self.get_top_priority()
+        return result["high_priority"][:10]
+
+    def _score_all_jobs(self) -> tuple[list[dict], int]:
+        """Score all jobs, apply filters, return sorted matches.
+
+        Returns:
+            Tuple of (sorted_scored_jobs, total_job_count).
+        """
+        db = get_database()
+        jobs_collection = db["jobs"]
+
+        cursor = jobs_collection.find({}, {"_id": 0})
+        all_jobs = list(cursor)
+
+        watchlist_companies = self._get_watchlist_companies()
+
+        scored_jobs = []
+        for job in all_jobs:
+            score, collections = self._score_job(job, watchlist_companies)
+            if score >= MIN_SCORE:
+                job["_score"] = score
+                job["_collections"] = collections
+                scored_jobs.append(job)
+
+        scored_jobs.sort(key=lambda j: j["_score"], reverse=True)
+        return scored_jobs, len(all_jobs)
+
+    def _get_watchlist_companies(self) -> set[str]:
+        """Get watchlist company names as a lowercase set."""
+        repo = JobsRepository()
+        watchlist = repo.get_watchlist()
+        return {entry["company_name"].lower() for entry in watchlist}
 
     def _score_job(self, job: dict, watchlist_companies: set[str]) -> tuple[int, list[str]]:
         """Score a single job based on profile weights and bonuses.
@@ -136,6 +231,12 @@ class CareerRadarService:
         title = job.get("title", "").lower()
         description = job.get("description", "").lower()
         combined = f"{title} {description}"
+
+        # Negative keyword penalty (check title only for speed)
+        for neg_kw in NEGATIVE_KEYWORDS:
+            if neg_kw.lower() in title:
+                score -= NEGATIVE_PENALTY
+                break  # One penalty is enough
 
         # Collection matching
         for collection_def in COLLECTIONS:
