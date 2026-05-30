@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JobCopilot — Application Pipeline</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .kanban {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: var(--space-md);
+      margin-top: var(--space-lg);
+    }
+    .kanban-column {
+      background: var(--bg-glass);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: var(--space-md);
+      backdrop-filter: blur(8px);
+      min-height: 300px;
+    }
+    .kanban-column__header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--space-md);
+      padding-bottom: var(--space-sm);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .kanban-column__title {
+      font-size: var(--font-size-base);
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .kanban-column__count {
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      font-size: var(--font-size-xs);
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+    }
+    .kanban-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: var(--space-sm) var(--space-md);
+      margin-bottom: var(--space-sm);
+      transition: var(--transition-fast);
+    }
+    .kanban-card:hover {
+      border-color: var(--accent-blue);
+    }
+    .kanban-card__title {
+      font-size: var(--font-size-sm);
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 2px;
+    }
+    .kanban-card__company {
+      font-size: var(--font-size-xs);
+      color: var(--text-secondary);
+    }
+    .kanban-card__meta {
+      font-size: var(--font-size-xs);
+      color: var(--text-tertiary);
+      margin-top: 4px;
+    }
+    .kanban-card__actions {
+      margin-top: var(--space-xs);
+      display: flex;
+      gap: var(--space-xs);
+    }
+    .kanban-card__btn {
+      font-size: var(--font-size-xs);
+      padding: 2px 6px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-glass);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: var(--transition-fast);
+    }
+    .kanban-card__btn:hover {
+      background: var(--accent-blue);
+      color: white;
+      border-color: var(--accent-blue);
+    }
+    .pipeline-stats {
+      display: flex;
+      gap: var(--space-lg);
+      margin-bottom: var(--space-lg);
+      flex-wrap: wrap;
+    }
+    .pipeline-stat {
+      background: var(--bg-glass);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: var(--space-sm) var(--space-lg);
+      text-align: center;
+    }
+    .pipeline-stat__value {
+      font-size: var(--font-size-xl);
+      font-weight: 700;
+    }
+    .pipeline-stat__label {
+      font-size: var(--font-size-xs);
+      color: var(--text-secondary);
+    }
+    .stat-interested { color: var(--accent-blue); }
+    .stat-applied { color: var(--accent-yellow); }
+    .stat-interview { color: var(--accent-green); }
+    .stat-rejected { color: var(--accent-red); }
+    .stat-offer { color: var(--accent-purple); }
+    .empty-column {
+      text-align: center;
+      padding: var(--space-lg);
+      color: var(--text-tertiary);
+      font-size: var(--font-size-sm);
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar" role="navigation" aria-label="Main navigation">
+    <div class="navbar__brand">🚀 JobCopilot</div>
+    <ul class="navbar__nav">
+      <li><a href="index.html" class="navbar__link">Dashboard</a></li>
+      <li><a href="jobs.html" class="navbar__link">Jobs</a></li>
+      <li><a href="india-feed.html" class="navbar__link">🇮🇳 India</a></li>
+      <li><a href="career-radar.html" class="navbar__link">🎯 Radar</a></li>
+      <li><a href="internships.html" class="navbar__link">🎓 Internships</a></li>
+      <li><a href="analytics.html" class="navbar__link">📊 Analytics</a></li>
+      <li><a href="saved.html" class="navbar__link">⭐ Saved</a></li>
+      <li><a href="watchlist.html" class="navbar__link">👀 Watchlist</a></li>
+    </ul>
+  </nav>
+
+  <main class="main-content">
+    <header class="page-header">
+      <h1 class="page-header__title">📋 Application Pipeline</h1>
+      <p class="page-header__subtitle">Track your job applications from interest to offer</p>
+    </header>
+
+    <!-- Pipeline Stats -->
+    <div class="pipeline-stats" id="pipeline-stats"></div>
+
+    <!-- Loading -->
+    <div id="loading-state">
+      <div class="skeleton skeleton--row"></div>
+      <div class="skeleton skeleton--row"></div>
+      <div class="skeleton skeleton--row"></div>
+    </div>
+
+    <!-- Kanban Board -->
+    <div id="kanban-board" class="kanban" style="display: none;"></div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script>
+  (function () {
+    'use strict';
+
+    var API = window.JobCopilotAPI;
+    var loadingState = document.getElementById('loading-state');
+    var kanbanBoard = document.getElementById('kanban-board');
+    var pipelineStats = document.getElementById('pipeline-stats');
+
+    var COLUMNS = [
+      { key: 'Interested', label: '💡 Interested', colorClass: 'stat-interested' },
+      { key: 'Applied', label: '📨 Applied', colorClass: 'stat-applied' },
+      { key: 'Interview', label: '🎤 Interview', colorClass: 'stat-interview' },
+      { key: 'Assessment', label: '📝 Assessment', colorClass: 'stat-applied' },
+      { key: 'Offer', label: '🎉 Offer', colorClass: 'stat-offer' },
+      { key: 'Rejected', label: '❌ Rejected', colorClass: 'stat-rejected' },
+    ];
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      var div = document.createElement('div');
+      div.appendChild(document.createTextNode(str));
+      return div.innerHTML;
+    }
+
+    function createKanbanCard(job) {
+      var card = document.createElement('div');
+      card.className = 'kanban-card';
+
+      var dateApplied = job.date_applied ? job.date_applied.split('T')[0] : '';
+
+      card.innerHTML =
+        '<div class="kanban-card__title">' + escapeHtml(job.title) + '</div>' +
+        '<div class="kanban-card__company">' + escapeHtml(job.company) + '</div>' +
+        '<div class="kanban-card__meta">' +
+          (job.location ? '📍 ' + escapeHtml(job.location) : '') +
+          (dateApplied ? ' · ' + dateApplied : '') +
+        '</div>' +
+        '<div class="kanban-card__actions">' +
+          '<a href="' + escapeHtml(job.job_url || '#') + '" target="_blank" class="kanban-card__btn">View ↗</a>' +
+        '</div>';
+
+      return card;
+    }
+
+    async function loadPipeline() {
+      loadingState.style.display = '';
+      kanbanBoard.style.display = 'none';
+
+      var result = await API.getAppliedJobs();
+
+      if (!result.ok) {
+        loadingState.innerHTML = '<div style="text-align:center;color:var(--text-secondary);padding:var(--space-xl);">⚠️ Unable to load pipeline</div>';
+        return;
+      }
+
+      var jobs = result.data || [];
+
+      // Group by status
+      var grouped = {};
+      COLUMNS.forEach(function (col) { grouped[col.key] = []; });
+
+      jobs.forEach(function (job) {
+        var status = job.status || 'Interested';
+        if (!grouped[status]) grouped[status] = [];
+        grouped[status].push(job);
+      });
+
+      // Render stats
+      pipelineStats.innerHTML = '';
+      COLUMNS.forEach(function (col) {
+        var count = grouped[col.key] ? grouped[col.key].length : 0;
+        var stat = document.createElement('div');
+        stat.className = 'pipeline-stat';
+        stat.innerHTML =
+          '<div class="pipeline-stat__value ' + col.colorClass + '">' + count + '</div>' +
+          '<div class="pipeline-stat__label">' + col.label + '</div>';
+        pipelineStats.appendChild(stat);
+      });
+
+      // Render kanban columns
+      kanbanBoard.innerHTML = '';
+      COLUMNS.forEach(function (col) {
+        var column = document.createElement('div');
+        column.className = 'kanban-column';
+
+        var items = grouped[col.key] || [];
+        column.innerHTML =
+          '<div class="kanban-column__header">' +
+            '<span class="kanban-column__title">' + col.label + '</span>' +
+            '<span class="kanban-column__count">' + items.length + '</span>' +
+          '</div>';
+
+        if (items.length === 0) {
+          var empty = document.createElement('div');
+          empty.className = 'empty-column';
+          empty.textContent = 'No applications';
+          column.appendChild(empty);
+        } else {
+          items.forEach(function (job) {
+            column.appendChild(createKanbanCard(job));
+          });
+        }
+
+        kanbanBoard.appendChild(column);
+      });
+
+      loadingState.style.display = 'none';
+      kanbanBoard.style.display = '';
+    }
+
+    loadPipeline();
+  })();
+  </script>
+</body>
+</html>

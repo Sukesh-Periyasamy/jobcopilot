@@ -151,3 +151,91 @@ def get_jobs_by_company(name: str) -> list[JobResponse]:
     except Exception as e:
         logger.error("Error fetching jobs for company '%s': %s", name, e)
         raise HTTPException(status_code=500, detail="Failed to fetch company jobs")
+
+
+@router.get("/companies/{name}/insights")
+def get_company_insights(name: str) -> dict:
+    """Get intelligence about a specific company.
+
+    Returns total jobs, India jobs, research jobs, medical device jobs,
+    latest posting date, and job type breakdown.
+    """
+    try:
+        import re
+        from datetime import datetime, timedelta, timezone
+
+        from app.database.connection import get_database
+        from app.services.constants import COLLECTIONS, INTERNSHIP_KEYWORDS, RESEARCH_INSTITUTIONS
+
+        db = get_database()
+        jobs_col = db["jobs"]
+
+        # Find all jobs from this company (case-insensitive)
+        query = {"company": {"$regex": f"^{re.escape(name)}$", "$options": "i"}}
+        all_jobs = list(jobs_col.find(query, {"_id": 0}).sort("date_posted", -1))
+
+        if not all_jobs:
+            # Try substring match
+            query = {"company": {"$regex": re.escape(name), "$options": "i"}}
+            all_jobs = list(jobs_col.find(query, {"_id": 0}).sort("date_posted", -1))
+
+        total = len(all_jobs)
+
+        # India jobs
+        india_cities = ["india", "bangalore", "bengaluru", "hyderabad", "chennai", "pune", "mumbai", "delhi", "noida", "gurugram", "gurgaon"]
+        india_jobs = [j for j in all_jobs if any(c in j.get("location", "").lower() for c in india_cities)]
+
+        # Research jobs
+        research_jobs = [j for j in all_jobs if any(
+            inst.lower() in j.get("description", "").lower() or inst.lower() in j.get("title", "").lower()
+            for inst in ["research", "scientist", "R&D"]
+        )]
+
+        # Medical device jobs
+        medtech_keywords = []
+        for c in COLLECTIONS:
+            if c.name in ("Medical Technology", "Medical Devices", "Biomedical Engineering"):
+                medtech_keywords.extend(c.keywords)
+        medtech_jobs = [j for j in all_jobs if any(
+            kw.lower() in f"{j.get('title', '')} {j.get('description', '')}".lower()
+            for kw in medtech_keywords
+        )]
+
+        # Internships
+        intern_jobs = [j for j in all_jobs if any(
+            kw.lower() in j.get("title", "").lower() for kw in INTERNSHIP_KEYWORDS
+        )]
+
+        # Latest posting
+        latest = all_jobs[0].get("date_posted", "") if all_jobs else ""
+        days_since = ""
+        if latest:
+            try:
+                posted = datetime.strptime(latest, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                days = (datetime.now(timezone.utc) - posted).days
+                days_since = f"{days} days ago"
+            except (ValueError, TypeError):
+                pass
+
+        # Recent jobs (last 5)
+        recent = [{
+            "title": j.get("title", ""),
+            "location": j.get("location", ""),
+            "date_posted": j.get("date_posted", ""),
+            "job_url": j.get("job_url", ""),
+        } for j in all_jobs[:5]]
+
+        return {
+            "company": name,
+            "total_jobs": total,
+            "india_jobs": len(india_jobs),
+            "research_jobs": len(research_jobs),
+            "medtech_jobs": len(medtech_jobs),
+            "internships": len(intern_jobs),
+            "latest_posting": latest,
+            "days_since_latest": days_since,
+            "recent_jobs": recent,
+        }
+    except Exception as e:
+        logger.error("Error fetching company insights for '%s': %s", name, e)
+        raise HTTPException(status_code=500, detail="Failed to fetch company insights")

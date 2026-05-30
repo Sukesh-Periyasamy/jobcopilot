@@ -22,17 +22,17 @@ logger = logging.getLogger(__name__)
 
 # Career profile weights — higher = more relevant to user
 COLLECTION_WEIGHTS: dict[str, int] = {
-    "Medical Technology": 10,
     "Biomedical Engineering": 10,
-    "Healthcare AI": 10,
-    "Medical Devices": 9,
-    "Research Engineering": 9,
-    "Embedded Systems": 8,
-    "IoT": 8,
-    "Python Development": 7,
-    "Healthcare Technology": 7,
-    "Diagnostics and Biosensors": 7,
-    "Product Management": 5,
+    "Medical Devices": 10,
+    "Research Engineering": 10,
+    "Diagnostics and Biosensors": 10,
+    "Medical Technology": 9,
+    "Healthcare AI": 8,
+    "Embedded Systems": 7,
+    "IoT": 7,
+    "Python Development": 6,
+    "Healthcare Technology": 6,
+    "Product Management": 4,
 }
 
 # Biomedical research profile — tuned for SERS/biosensor/diagnostics research
