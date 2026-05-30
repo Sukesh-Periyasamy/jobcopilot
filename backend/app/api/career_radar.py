@@ -32,6 +32,21 @@ def get_career_radar_top() -> dict:
         raise HTTPException(status_code=500, detail="Failed to compute career radar")
 
 
+@router.get("/career-radar/action-list")
+def get_career_radar_action_list() -> dict:
+    """Return the daily application queue.
+
+    Filters: score >= 25, posted <= 30 days, not already applied/saved.
+    Broader window for a fuller action list.
+    """
+    try:
+        service = CareerRadarService()
+        return service.get_action_list()
+    except Exception as e:
+        logger.error("Error computing career radar action list: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to compute career radar")
+
+
 @router.get("/career-radar")
 def get_career_radar() -> dict:
     """Return personalized career radar with scored and ranked jobs.

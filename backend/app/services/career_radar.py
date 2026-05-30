@@ -38,10 +38,12 @@ COLLECTION_WEIGHTS: dict[str, int] = {
 # Negative keywords — penalize irrelevant roles
 NEGATIVE_KEYWORDS: list[str] = [
     "sales",
+    "marketing",
     "account executive",
+    "business development",
     "recruiter",
+    "talent acquisition",
     "customer success",
-    "business development representative",
     "SDR",
     "BDR",
     "real estate",
@@ -50,8 +52,38 @@ NEGATIVE_KEYWORDS: list[str] = [
     "content writer",
     "social media manager",
     "graphic designer",
+    "copywriter",
 ]
-NEGATIVE_PENALTY = 15
+NEGATIVE_PENALTY = 20
+
+# Seniority penalties — too senior for early-career profile
+SENIOR_KEYWORDS: list[str] = [
+    "director",
+    "principal",
+    "vp",
+    "vice president",
+    "head of",
+    "chief",
+    "cto",
+    "ceo",
+    "svp",
+]
+SENIOR_PENALTY = 15
+
+# Early career bonus — roles matching current career stage
+EARLY_CAREER_KEYWORDS: list[str] = [
+    "associate",
+    "junior",
+    "entry",
+    "graduate",
+    "engineer i",
+    "research associate",
+    "trainee",
+    "intern",
+    "fresher",
+    "early career",
+]
+EARLY_CAREER_BONUS = 8
 
 # Minimum score to be considered a match
 MIN_SCORE = 15
@@ -59,6 +91,10 @@ MIN_SCORE = 15
 # High priority threshold for /career-radar/top
 HIGH_PRIORITY_SCORE = 25
 HIGH_PRIORITY_MAX_DAYS = 14
+
+# Action list threshold (broader window)
+ACTION_LIST_SCORE = 25
+ACTION_LIST_MAX_DAYS = 30
 
 # Freshness bonuses
 FRESHNESS_BONUSES = [
@@ -69,7 +105,7 @@ FRESHNESS_BONUSES = [
 
 # Location bonuses
 REMOTE_BONUS = 2
-INDIA_BONUS = 1
+INDIA_BONUS = 10  # Strong India preference for current stage
 
 # Watchlist company bonus
 WATCHLIST_BONUS = 5
@@ -134,41 +170,7 @@ class CareerRadarService:
             Dict with high_priority list and stats.
         """
         scored_jobs, total_count = self._score_all_jobs()
-
-        # Get applied and saved job URLs to exclude
-        repo = JobsRepository()
-        applied_urls = {j.get("job_url") for j in repo.get_applied_jobs()}
-        saved_urls = {j.get("job_url") for j in repo.get_saved_jobs()}
-        excluded_urls = applied_urls | saved_urls
-
-        now = datetime.now(timezone.utc)
-        high_priority = []
-
-        for job in scored_jobs:
-            # Score threshold
-            if job.get("_score", 0) < HIGH_PRIORITY_SCORE:
-                break  # Already sorted desc, no more will qualify
-
-            # Freshness threshold
-            date_posted = job.get("date_posted", "")
-            if date_posted:
-                try:
-                    posted = datetime.strptime(date_posted, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-                    if (now - posted).days > HIGH_PRIORITY_MAX_DAYS:
-                        continue
-                except (ValueError, TypeError):
-                    continue
-            else:
-                continue
-
-            # Exclude already applied/saved
-            if job.get("job_url") in excluded_urls:
-                continue
-
-            high_priority.append(self._format_job(job))
-
-            if len(high_priority) >= MAX_RESULTS_PER_CATEGORY:
-                break
+        high_priority = self._filter_actionable(scored_jobs, HIGH_PRIORITY_SCORE, HIGH_PRIORITY_MAX_DAYS)
 
         return {
             "high_priority": high_priority,
@@ -178,6 +180,71 @@ class CareerRadarService:
                 "high_priority_count": len(high_priority),
             },
         }
+
+    def get_action_list(self) -> dict:
+        """Return the daily application queue.
+
+        Filters: score >= 25, posted <= 30 days, not already applied/saved.
+        Broader window than top_priority for a fuller action list.
+
+        Returns:
+            Dict with action_list and stats.
+        """
+        scored_jobs, total_count = self._score_all_jobs()
+        action_list = self._filter_actionable(scored_jobs, ACTION_LIST_SCORE, ACTION_LIST_MAX_DAYS)
+
+        return {
+            "action_list": action_list,
+            "stats": {
+                "total_scored": total_count,
+                "matches_found": len(scored_jobs),
+                "action_list_count": len(action_list),
+            },
+        }
+
+    def _filter_actionable(self, scored_jobs: list[dict], min_score: int, max_days: int) -> list[dict]:
+        """Filter jobs by score, freshness, and exclude applied/saved.
+
+        Args:
+            scored_jobs: Pre-sorted list of scored jobs.
+            min_score: Minimum score threshold.
+            max_days: Maximum days since posting.
+
+        Returns:
+            List of formatted job dicts meeting all criteria.
+        """
+        repo = JobsRepository()
+        applied_urls = {j.get("job_url") for j in repo.get_applied_jobs()}
+        saved_urls = {j.get("job_url") for j in repo.get_saved_jobs()}
+        excluded_urls = applied_urls | saved_urls
+
+        now = datetime.now(timezone.utc)
+        results = []
+
+        for job in scored_jobs:
+            if job.get("_score", 0) < min_score:
+                break  # Sorted desc, no more will qualify
+
+            date_posted = job.get("date_posted", "")
+            if date_posted:
+                try:
+                    posted = datetime.strptime(date_posted, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                    if (now - posted).days > max_days:
+                        continue
+                except (ValueError, TypeError):
+                    continue
+            else:
+                continue
+
+            if job.get("job_url") in excluded_urls:
+                continue
+
+            results.append(self._format_job(job))
+
+            if len(results) >= MAX_RESULTS_PER_CATEGORY:
+                break
+
+        return results
 
     def get_telegram_summary(self) -> list[dict]:
         """Return top 10 matches formatted for Telegram notification.
@@ -237,6 +304,18 @@ class CareerRadarService:
             if neg_kw.lower() in title:
                 score -= NEGATIVE_PENALTY
                 break  # One penalty is enough
+
+        # Seniority penalty — too senior for early-career profile
+        for senior_kw in SENIOR_KEYWORDS:
+            if senior_kw in title:
+                score -= SENIOR_PENALTY
+                break
+
+        # Early career bonus — matches current career stage
+        for ec_kw in EARLY_CAREER_KEYWORDS:
+            if ec_kw in title:
+                score += EARLY_CAREER_BONUS
+                break
 
         # Collection matching
         for collection_def in COLLECTIONS:
