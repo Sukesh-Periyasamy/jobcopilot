@@ -14,7 +14,6 @@ from app.config.settings import Settings
 from app.database.repository import JobsRepository
 from app.models.job import JobRecord, ScrapeHistoryEntry, ScrapeResult
 from app.scraper.jobhive_scraper import scrape_jobhive
-from app.scraper.scraper import scrape_all
 from app.services.notifier import TelegramNotifier
 from app.utils.logger import setup_logging
 from app.utils.retry import retry_with_backoff
@@ -29,7 +28,11 @@ def _run_jobspy(settings: Settings) -> ScrapeResult:
     can proceed with JobHive results alone.
     """
     try:
+        from app.scraper.scraper import scrape_all
         return scrape_all(settings)
+    except ImportError as exc:
+        logger.warning("JobSpy not available (missing dependency): %s", exc)
+        return ScrapeResult(jobs=[], errors=[f"JobSpy not available: {exc}"])
     except Exception as exc:
         logger.error("JobSpy scraper failed entirely: %s", exc)
         return ScrapeResult(jobs=[], errors=[f"JobSpy scraper failed: {exc}"])
