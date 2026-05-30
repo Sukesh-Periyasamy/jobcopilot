@@ -26,6 +26,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://sukeshperiyasamy.github.io",
+        "https://sukesh-periyasamy.github.io",
         "https://jobcopilot-uydv.onrender.com",
     ],
     allow_credentials=True,
