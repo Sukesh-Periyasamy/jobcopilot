@@ -416,3 +416,75 @@ def get_daily_targets() -> dict:
     except Exception as e:
         logger.error("Error computing daily targets: %s", e)
         raise HTTPException(status_code=500, detail="Failed to compute daily targets")
+
+
+@router.get("/medtech-freshers")
+def get_medtech_freshers() -> dict:
+    """Return medical technology fresher opportunities in India.
+
+    Sections: Research Associate, Clinical Research, Biomedical Engineer,
+    Medical Device Engineer, Healthcare AI, Diagnostics & Biosensors.
+    Aligned with M.Tech Medical Technology profile.
+    """
+    try:
+        import re
+        from app.database.connection import get_database
+
+        db = get_database()
+        jobs_col = db["jobs"]
+
+        # Medical tech role categories
+        categories = {
+            "Research Associate": ["research associate", "project associate", "research assistant"],
+            "Clinical Research": ["clinical research", "clinical data", "clinical engineer"],
+            "Biomedical Engineer": ["biomedical engineer", "biomedical", "bioengineering"],
+            "Medical Device Engineer": ["medical device", "medtech", "regulatory affairs", "validation engineer", "quality engineer"],
+            "Healthcare AI": ["healthcare ai", "medical ai", "health informatics", "clinical ai"],
+            "Diagnostics & Biosensors": ["diagnostics", "biosensor", "spectroscopy", "point-of-care", "biomarker"],
+        }
+
+        # India location filter
+        india_locations = ["india", "bangalore", "bengaluru", "chennai", "coimbatore", "hyderabad", "pune", "mumbai", "delhi", "gurgaon", "gurugram", "noida", "remote"]
+        loc_conditions = [{"location": {"$regex": loc, "$options": "i"}} for loc in india_locations]
+
+        results = {}
+        service = RegionalRadarService()
+
+        for category, keywords in categories.items():
+            kw_conditions = []
+            for kw in keywords:
+                kw_conditions.append({"title": {"$regex": re.escape(kw), "$options": "i"}})
+                kw_conditions.append({"description": {"$regex": re.escape(kw), "$options": "i"}})
+
+            query = {"$and": [{"$or": kw_conditions}, {"$or": loc_conditions}]}
+            cursor = jobs_col.find(query, {"_id": 0}).sort("date_posted", -1).limit(20)
+            jobs = list(cursor)
+
+            scored = []
+            for job in jobs:
+                score = service._fresher_score(job)
+                scored.append({
+                    "title": job.get("title", ""),
+                    "company": job.get("company", ""),
+                    "location": job.get("location", ""),
+                    "job_url": job.get("job_url", ""),
+                    "date_posted": job.get("date_posted", ""),
+                    "source_platform": job.get("source_platform", ""),
+                    "fresher_score": score,
+                })
+
+            scored.sort(key=lambda j: j["fresher_score"], reverse=True)
+            results[category] = scored
+
+        total = sum(len(v) for v in results.values())
+
+        return {
+            "categories": results,
+            "stats": {
+                "total_jobs": total,
+                "categories_count": len([k for k, v in results.items() if v]),
+            },
+        }
+    except Exception as e:
+        logger.error("Error fetching medtech freshers: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to fetch medical technology fresher jobs")

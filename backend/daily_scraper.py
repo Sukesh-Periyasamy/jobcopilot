@@ -14,6 +14,7 @@ from app.config.settings import Settings
 from app.database.repository import JobsRepository
 from app.models.job import JobRecord, ScrapeHistoryEntry, ScrapeResult
 from app.scraper.jobhive_scraper import scrape_jobhive
+from app.scraper.research_scraper import scrape_research_institutions
 from app.services.notifier import TelegramNotifier
 from app.utils.logger import setup_logging
 from app.utils.retry import retry_with_backoff
@@ -108,9 +109,22 @@ def _run_workflow() -> None:
         len(jobhive_result.errors),
     )
 
+    # 3.5. Run Research Institution scraper
+    logger.info("Starting Research Institution scrape.")
+    try:
+        research_result = scrape_research_institutions()
+        logger.info(
+            "Research scrape completed: %d jobs collected, %d errors.",
+            len(research_result.jobs),
+            len(research_result.errors),
+        )
+    except Exception as exc:
+        logger.error("Research scraper failed (non-fatal): %s", exc)
+        research_result = ScrapeResult(jobs=[], errors=[str(exc)])
+
     # 4. Merge results
-    merged_jobs = jobspy_result.jobs + jobhive_result.jobs
-    merged_errors = jobspy_result.errors + jobhive_result.errors
+    merged_jobs = jobspy_result.jobs + jobhive_result.jobs + research_result.jobs
+    merged_errors = jobspy_result.errors + jobhive_result.errors + research_result.errors
     merged_result = ScrapeResult(jobs=merged_jobs, errors=merged_errors)
     logger.info(
         "Merged scrape results: %d total jobs, %d total errors.",
