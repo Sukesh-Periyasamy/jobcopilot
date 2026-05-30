@@ -4,6 +4,7 @@ pymongo
 python-dotenv
 pydantic
 httpx
+requests
 hypothesis
 pytest
 pytest-asyncio
