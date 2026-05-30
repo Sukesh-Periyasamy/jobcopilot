@@ -5,9 +5,13 @@ on:
     - cron: '30 2 * * *'  # 08:00 AM IST
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout Repo
@@ -22,6 +26,14 @@ jobs:
         run: |
           cd backend
           pip install -r requirements.txt
+
+      - name: Test MongoDB Connection
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          DATABASE_NAME: jobcopilot
+        run: |
+          cd backend
+          python -c "from pymongo import MongoClient; import os; c = MongoClient(os.environ['MONGODB_URI'], serverSelectionTimeoutMS=10000); c.admin.command('ping'); print('MongoDB connection OK')"
 
       - name: Run Scraper
         env:
