@@ -1,8 +1,7 @@
 """Smart Search Engine v2 for JobCopilot.
 
 Provides weighted multi-field search with synonym expansion,
-regex matching, and relevance scoring. Replaces basic $text search
-with a more intelligent approach.
+regex matching, collection boosting, faceted filters, and relevance scoring.
 """
 
 from __future__ import annotations
@@ -12,6 +11,7 @@ import re
 from datetime import datetime, timedelta, timezone
 
 from app.database.connection import get_database
+from app.services.constants import COLLECTIONS
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 FIELD_WEIGHTS = {
     "title": 10,
     "company": 8,
+    "collection": 12,
     "location": 4,
     "description": 3,
 }
@@ -123,6 +124,9 @@ class SmartSearchService:
         # Format results
         results = [self._format_result(job) for job in page_results]
 
+        # Generate facets from scored results
+        facets = self._compute_facets(scored_jobs)
+
         # Generate suggestions if no results
         suggestions = []
         if not results:
@@ -135,6 +139,7 @@ class SmartSearchService:
             "page_size": page_size,
             "query": query,
             "expanded_terms": search_terms,
+            "facets": facets,
             "suggestions": suggestions,
         }
 
@@ -172,27 +177,49 @@ class SmartSearchService:
         """Score a job based on which fields match which terms.
 
         Higher weight fields contribute more to the score.
+        Includes collection matching for domain relevance.
         """
         score = 0
+
+        title_lower = job.get("title", "").lower()
+        company_lower = job.get("company", "").lower()
+        location_lower = job.get("location", "").lower()
+        description_lower = job.get("description", "").lower()
+        combined = f"{title_lower} {description_lower}"
 
         for term in search_terms:
             term_lower = term.lower()
 
             # Title match (highest weight)
-            if term_lower in job.get("title", "").lower():
+            if term_lower in title_lower:
                 score += FIELD_WEIGHTS["title"]
 
             # Company match
-            if term_lower in job.get("company", "").lower():
+            if term_lower in company_lower:
                 score += FIELD_WEIGHTS["company"]
 
             # Location match
-            if term_lower in job.get("location", "").lower():
+            if term_lower in location_lower:
                 score += FIELD_WEIGHTS["location"]
 
-            # Description match (lowest weight, checked last)
-            if term_lower in job.get("description", "").lower():
+            # Description match
+            if term_lower in description_lower:
                 score += FIELD_WEIGHTS["description"]
+
+            # Collection match — boost if term matches a collection's keywords
+            for collection_def in COLLECTIONS:
+                if term_lower in collection_def.name.lower():
+                    # Term matches collection name — check if job belongs to this collection
+                    for kw in collection_def.keywords:
+                        if kw.lower() in combined:
+                            score += FIELD_WEIGHTS["collection"]
+                            break
+                    break
+                # Also check if term matches any collection keyword
+                for kw in collection_def.keywords:
+                    if term_lower == kw.lower() and kw.lower() in combined:
+                        score += FIELD_WEIGHTS["collection"]
+                        break
 
         # Freshness bonus
         date_posted = job.get("date_posted", "")
@@ -210,6 +237,52 @@ class SmartSearchService:
                 pass
 
         return score
+
+    def _compute_facets(self, scored_jobs: list[dict]) -> dict:
+        """Compute faceted filter counts from search results.
+
+        Returns top companies, locations, platforms, and matching collections.
+        """
+        company_counts: dict[str, int] = {}
+        location_counts: dict[str, int] = {}
+        platform_counts: dict[str, int] = {}
+        collection_counts: dict[str, int] = {}
+
+        for job in scored_jobs:
+            # Company facet
+            company = job.get("company", "").strip()
+            if company:
+                company_counts[company] = company_counts.get(company, 0) + 1
+
+            # Location facet
+            location = job.get("location", "").strip()
+            if location:
+                location_counts[location] = location_counts.get(location, 0) + 1
+
+            # Platform facet
+            platform = job.get("source_platform", "").strip()
+            if platform:
+                platform_counts[platform] = platform_counts.get(platform, 0) + 1
+
+            # Collection facet — check which collections this job belongs to
+            combined = f"{job.get('title', '')} {job.get('description', '')}".lower()
+            for collection_def in COLLECTIONS:
+                for kw in collection_def.keywords:
+                    if kw.lower() in combined:
+                        collection_counts[collection_def.name] = collection_counts.get(collection_def.name, 0) + 1
+                        break
+
+        # Sort by count descending, take top 10
+        def top_n(counts: dict, n: int = 10) -> list[dict]:
+            sorted_items = sorted(counts.items(), key=lambda x: x[1], reverse=True)
+            return [{"name": k, "count": v} for k, v in sorted_items[:n]]
+
+        return {
+            "top_companies": top_n(company_counts),
+            "top_locations": top_n(location_counts),
+            "top_platforms": top_n(platform_counts, 5),
+            "top_collections": top_n(collection_counts),
+        }
 
     def _format_result(self, job: dict) -> dict:
         """Format a scored job for the search response."""
