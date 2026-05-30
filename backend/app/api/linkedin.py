@@ -341,3 +341,79 @@ def get_scraper_status() -> dict:
     except Exception as e:
         logger.error("Error fetching scraper status: %s", e)
         raise HTTPException(status_code=500, detail="Failed to fetch scraper status")
+
+
+@router.get("/linkedin/hiring-trends")
+def get_hiring_trends() -> dict:
+    """Return hiring surge data — companies with increasing job postings.
+
+    Compares this week vs last week to show which companies are
+    ramping up hiring. Highlights MedTech companies.
+    """
+    try:
+        db = get_database()
+        jobs_col = db["jobs"]
+
+        now = datetime.now(timezone.utc)
+        this_week_start = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+        last_week_start = (now - timedelta(days=14)).strftime("%Y-%m-%d")
+
+        # This week's jobs by company
+        this_week_pipeline = [
+            {"$match": {"date_posted": {"$gte": this_week_start}}},
+            {"$group": {"_id": "$company", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}},
+        ]
+        this_week = {doc["_id"]: doc["count"] for doc in jobs_col.aggregate(this_week_pipeline) if doc["_id"]}
+
+        # Last week's jobs by company
+        last_week_pipeline = [
+            {"$match": {"date_posted": {"$gte": last_week_start, "$lt": this_week_start}}},
+            {"$group": {"_id": "$company", "count": {"$sum": 1}}},
+        ]
+        last_week = {doc["_id"]: doc["count"] for doc in jobs_col.aggregate(last_week_pipeline) if doc["_id"]}
+
+        # Calculate trends
+        trends = []
+        medtech_lower = [c.lower() for c in MEDTECH_COMPANIES]
+
+        for company, this_count in this_week.items():
+            last_count = last_week.get(company, 0)
+            if last_count > 0:
+                change_pct = round(((this_count - last_count) / last_count) * 100)
+            elif this_count > 0:
+                change_pct = 100  # New company this week
+            else:
+                change_pct = 0
+
+            is_medtech = any(mt in company.lower() for mt in medtech_lower)
+
+            trends.append({
+                "company": company,
+                "jobs_this_week": this_count,
+                "jobs_last_week": last_count,
+                "change_percent": change_pct,
+                "trend": "up" if change_pct > 0 else ("down" if change_pct < 0 else "stable"),
+                "is_medtech": is_medtech,
+            })
+
+        # Sort by this week's count (most active first)
+        trends.sort(key=lambda x: x["jobs_this_week"], reverse=True)
+
+        # Separate surging companies (positive trend)
+        surging = [t for t in trends if t["change_percent"] > 0][:15]
+        medtech_surging = [t for t in surging if t["is_medtech"]]
+
+        return {
+            "surging_companies": surging,
+            "medtech_surging": medtech_surging,
+            "all_trends": trends[:30],
+            "stats": {
+                "companies_hiring_this_week": len(this_week),
+                "companies_hiring_last_week": len(last_week),
+                "total_jobs_this_week": sum(this_week.values()),
+            },
+        }
+    except Exception as e:
+        logger.error("Error computing hiring trends: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to compute hiring trends")
