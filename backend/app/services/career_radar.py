@@ -20,34 +20,54 @@ from app.services.constants import (
 
 logger = logging.getLogger(__name__)
 
-# Career profile weights — higher = more relevant to user
+# Career profile weights — IIT Jodhpur M.Tech Medical Technology
+# Tuned for: MedTech R&D, Clinical/Regulatory, Healthcare AI, Research
 COLLECTION_WEIGHTS: dict[str, int] = {
-    "Biomedical Engineering": 10,
     "Medical Devices": 10,
+    "Biomedical Engineering": 10,
     "Research Engineering": 10,
     "Diagnostics and Biosensors": 10,
     "Medical Technology": 9,
     "Healthcare AI": 8,
+    "Healthcare Technology": 7,
     "Embedded Systems": 7,
-    "IoT": 7,
-    "Python Development": 6,
-    "Healthcare Technology": 6,
-    "Product Management": 4,
+    "IoT": 6,
+    "Python Development": 4,
+    "Product Management": 3,
 }
 
 # Biomedical research profile — tuned for SERS/biosensor/diagnostics research
 BIOMEDICAL_PROFILE_WEIGHTS: dict[str, int] = {
+    "Diagnostics and Biosensors": 10,
     "Biomedical Engineering": 10,
     "Medical Devices": 10,
     "Research Engineering": 10,
-    "Diagnostics and Biosensors": 10,
-    "Medical Technology": 8,
+    "Medical Technology": 9,
     "Healthcare AI": 7,
-    "Embedded Systems": 6,
-    "IoT": 5,
+    "Embedded Systems": 5,
     "Healthcare Technology": 5,
-    "Python Development": 4,
-    "Product Management": 2,
+    "IoT": 4,
+    "Python Development": 3,
+    "Product Management": 1,
+}
+
+# Role-specific bonuses — boost roles that match M.Tech Medical Technology
+ROLE_BONUSES: dict[str, int] = {
+    "medical device engineer": 15,
+    "biomedical engineer": 15,
+    "research associate": 15,
+    "project associate": 15,
+    "clinical research associate": 12,
+    "quality engineer": 12,
+    "regulatory affairs": 12,
+    "validation engineer": 12,
+    "r&d engineer": 12,
+    "healthcare ai": 10,
+    "clinical data analyst": 10,
+    "project scientist": 10,
+    "research scientist": 10,
+    "jrf": 10,
+    "srf": 10,
 }
 
 # Research fellowship keywords
@@ -83,8 +103,12 @@ NEGATIVE_KEYWORDS: list[str] = [
     "social media manager",
     "graphic designer",
     "copywriter",
+    "it support",
+    "help desk",
+    "network administrator",
+    "devops",
 ]
-NEGATIVE_PENALTY = 20
+NEGATIVE_PENALTY = 25
 
 # Seniority penalties — too senior for early-career profile
 SENIOR_KEYWORDS: list[str] = [
@@ -461,6 +485,12 @@ class CareerRadarService:
                 score += EARLY_CAREER_BONUS
                 break
 
+        # Role-specific bonus — M.Tech Medical Technology aligned roles
+        for role_kw, bonus in ROLE_BONUSES.items():
+            if role_kw in title:
+                score += bonus
+                break
+
         # Collection matching with custom weights
         for collection_def in COLLECTIONS:
             weight = weights.get(collection_def.name, 0)
@@ -618,6 +648,12 @@ class CareerRadarService:
         for ec_kw in EARLY_CAREER_KEYWORDS:
             if ec_kw in title:
                 score += EARLY_CAREER_BONUS
+                break
+
+        # Role-specific bonus — M.Tech Medical Technology aligned roles
+        for role_kw, bonus in ROLE_BONUSES.items():
+            if role_kw in title:
+                score += bonus
                 break
 
         # Collection matching
