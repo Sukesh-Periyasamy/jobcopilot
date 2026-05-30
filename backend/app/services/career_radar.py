@@ -246,6 +246,38 @@ class CareerRadarService:
 
         return results
 
+    def get_india_feed(self) -> dict:
+        """Return India-focused career radar matches.
+
+        Filters for jobs located in India (major cities + remote India).
+
+        Returns:
+            Dict with india_matches list and stats.
+        """
+        scored_jobs, total_count = self._score_all_jobs()
+
+        india_cities = [
+            "india", "bangalore", "bengaluru", "hyderabad", "chennai",
+            "pune", "mumbai", "delhi", "noida", "gurugram", "gurgaon",
+            "kolkata", "ahmedabad", "kochi", "thiruvananthapuram",
+        ]
+
+        india_matches = []
+        for job in scored_jobs:
+            location = job.get("location", "").lower()
+            if any(city in location for city in india_cities):
+                india_matches.append(self._format_job(job))
+                if len(india_matches) >= MAX_RESULTS_PER_CATEGORY:
+                    break
+
+        return {
+            "india_matches": india_matches,
+            "stats": {
+                "total_scored": total_count,
+                "india_count": len(india_matches),
+            },
+        }
+
     def get_telegram_summary(self) -> list[dict]:
         """Return top 10 matches formatted for Telegram notification.
 

@@ -47,6 +47,78 @@ def get_career_radar_action_list() -> dict:
         raise HTTPException(status_code=500, detail="Failed to compute career radar")
 
 
+@router.get("/career-radar/india")
+def get_career_radar_india() -> dict:
+    """Return India-focused career radar matches.
+
+    Filters for jobs in Indian cities and remote India positions.
+    """
+    try:
+        service = CareerRadarService()
+        return service.get_india_feed()
+    except Exception as e:
+        logger.error("Error computing India feed: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to compute India feed")
+
+
+@router.get("/watchlist-alerts")
+def get_watchlist_alerts() -> dict:
+    """Return new jobs from watchlist companies posted in the last 7 days.
+
+    Groups results by company with job counts.
+    """
+    try:
+        from datetime import datetime, timedelta, timezone
+
+        from app.database.connection import get_database
+        from app.database.repository import JobsRepository
+
+        repo = JobsRepository()
+        watchlist = repo.get_watchlist()
+        watchlist_companies = {entry["company_name"].lower(): entry for entry in watchlist}
+
+        db = get_database()
+        jobs_col = db["jobs"]
+
+        seven_days_ago = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
+
+        alerts = []
+        for company_lower, entry in watchlist_companies.items():
+            query = {
+                "company": {"$regex": f"^{company_lower}$", "$options": "i"},
+                "date_posted": {"$gte": seven_days_ago},
+            }
+            jobs = list(jobs_col.find(query, {"_id": 0}).sort("date_posted", -1).limit(10))
+            if jobs:
+                alerts.append({
+                    "company": entry["company_name"],
+                    "tier": entry.get("tier", "tier3"),
+                    "new_jobs_count": len(jobs),
+                    "jobs": [
+                        {
+                            "title": j.get("title", ""),
+                            "location": j.get("location", ""),
+                            "date_posted": j.get("date_posted", ""),
+                            "job_url": j.get("job_url", ""),
+                        }
+                        for j in jobs
+                    ],
+                })
+
+        # Sort by tier (tier1 first) then by job count
+        tier_order = {"tier1": 0, "tier2": 1, "tier3": 2}
+        alerts.sort(key=lambda a: (tier_order.get(a["tier"], 2), -a["new_jobs_count"]))
+
+        return {
+            "alerts": alerts,
+            "total_companies_hiring": len(alerts),
+            "total_new_jobs": sum(a["new_jobs_count"] for a in alerts),
+        }
+    except Exception as e:
+        logger.error("Error computing watchlist alerts: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to compute watchlist alerts")
+
+
 @router.get("/career-radar")
 def get_career_radar() -> dict:
     """Return personalized career radar with scored and ranked jobs.
