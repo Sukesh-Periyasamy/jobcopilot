@@ -45,6 +45,9 @@ jobs:
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           DATABASE_NAME: jobcopilot
+          SEARCH_TERMS: "Biomedical Engineer,Medical Device Engineer,Research Associate,Research Engineer,Clinical Research,Healthcare AI,Embedded Systems Engineer,IoT Engineer,Python Developer,Fresher Engineer,Graduate Engineer Trainee,Project Associate,JRF,Biosensor,Diagnostics"
+          LOCATIONS: "India,Bangalore,Chennai,Coimbatore,Hyderabad,Pune,Mumbai,Gurgaon,Remote,Delhi,Noida"
+          JOB_SOURCES: "linkedin,indeed,naukri,google"
         run: |
           cd backend
           python daily_scraper.py

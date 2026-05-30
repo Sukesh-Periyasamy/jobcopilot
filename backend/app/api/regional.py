@@ -229,3 +229,81 @@ def get_freshers_research() -> dict:
     except Exception as e:
         logger.error("Error fetching research freshers: %s", e)
         raise HTTPException(status_code=500, detail="Failed to fetch research fresher jobs")
+
+
+@router.get("/freshers/today")
+def get_freshers_today() -> dict:
+    """Return fresh fresher jobs posted in the last 72 hours, India only.
+
+    Rules: posted <= 3 days, India location, fresher_score >= 15, not applied.
+    This is the daily action feed for freshers.
+    """
+    try:
+        from datetime import datetime, timedelta, timezone
+
+        from app.database.connection import get_database
+        from app.database.repository import JobsRepository
+
+        db = get_database()
+        jobs_col = db["jobs"]
+
+        # Last 72 hours
+        three_days_ago = (datetime.now(timezone.utc) - timedelta(days=3)).strftime("%Y-%m-%d")
+
+        # India locations
+        india_locations = [
+            "india", "bangalore", "bengaluru", "chennai", "coimbatore",
+            "hyderabad", "pune", "mumbai", "delhi", "noida", "gurgaon",
+            "gurugram", "remote",
+        ]
+        loc_conditions = [
+            {"location": {"$regex": loc, "$options": "i"}}
+            for loc in india_locations
+        ]
+
+        query = {
+            "$and": [
+                {"date_posted": {"$gte": three_days_ago}},
+                {"$or": loc_conditions},
+            ]
+        }
+
+        cursor = jobs_col.find(query, {"_id": 0}).sort("date_posted", -1).limit(100)
+        jobs = list(cursor)
+
+        # Get applied URLs to exclude
+        repo = JobsRepository()
+        applied_urls = {j.get("job_url") for j in repo.get_applied_jobs()}
+
+        # Score and filter
+        service = RegionalRadarService()
+        results = []
+        for job in jobs:
+            if job.get("job_url") in applied_urls:
+                continue
+
+            score = service._fresher_score(job)
+            if score >= 15:
+                results.append({
+                    "title": job.get("title", ""),
+                    "company": job.get("company", ""),
+                    "location": job.get("location", ""),
+                    "job_url": job.get("job_url", ""),
+                    "date_posted": job.get("date_posted", ""),
+                    "source_platform": job.get("source_platform", ""),
+                    "fresher_score": score,
+                })
+
+        results.sort(key=lambda j: j["fresher_score"], reverse=True)
+
+        return {
+            "jobs": results[:50],
+            "stats": {
+                "count": len(results),
+                "period": "last 72 hours",
+                "location": "India",
+            },
+        }
+    except Exception as e:
+        logger.error("Error fetching today's freshers: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to fetch today's fresher jobs")
