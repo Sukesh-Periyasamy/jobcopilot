@@ -8,5 +8,6 @@ requests
 hypothesis
 pytest
 pytest-asyncio
-jobhive-py
+jobhive-py[parquet]
 openpyxl
+pyarrow
