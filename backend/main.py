@@ -46,6 +46,7 @@ from app.api.opportunities import router as opportunities_router
 from app.api.analytics import router as analytics_router
 from app.api.preferences import router as preferences_router
 from app.api.career_radar import router as career_radar_router
+from app.api.regional import router as regional_router
 
 app.include_router(health_router)
 app.include_router(jobs_router)
@@ -61,6 +62,7 @@ app.include_router(opportunities_router)
 app.include_router(analytics_router)
 app.include_router(preferences_router)
 app.include_router(career_radar_router)
+app.include_router(regional_router)
 
 
 # --- CLI ---

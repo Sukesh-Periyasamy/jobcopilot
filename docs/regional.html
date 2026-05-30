@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JobCopilot — South India Fresher Radar</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .radar-tabs { display: flex; gap: var(--space-sm); margin-bottom: var(--space-lg); flex-wrap: wrap; }
+    .radar-tab { padding: var(--space-sm) var(--space-md); border-radius: var(--radius-full); border: 1px solid var(--border-subtle); background: var(--bg-glass); color: var(--text-secondary); cursor: pointer; font-size: var(--font-size-sm); transition: var(--transition-fast); }
+    .radar-tab:hover { background: var(--bg-glass-hover); color: var(--text-primary); }
+    .radar-tab--active { background: var(--accent-green); color: white; border-color: var(--accent-green); }
+    .stats-row { display: flex; gap: var(--space-lg); margin-bottom: var(--space-lg); flex-wrap: wrap; }
+    .stat-card { background: var(--bg-glass); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: var(--space-md) var(--space-lg); backdrop-filter: blur(8px); }
+    .stat-card__value { font-size: var(--font-size-2xl); font-weight: 700; color: var(--accent-green); }
+    .stat-card__label { font-size: var(--font-size-sm); color: var(--text-secondary); }
+    .district-chips { display: flex; gap: var(--space-xs); flex-wrap: wrap; margin-bottom: var(--space-lg); }
+    .district-chip { padding: 4px 12px; border-radius: var(--radius-full); background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); color: var(--accent-green); font-size: var(--font-size-xs); cursor: pointer; transition: var(--transition-fast); }
+    .district-chip:hover { background: var(--accent-green); color: white; }
+    .district-chip__count { opacity: 0.7; }
+    .job-card { background: var(--bg-glass); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: var(--space-md); margin-bottom: var(--space-sm); backdrop-filter: blur(8px); transition: var(--transition-fast); }
+    .job-card:hover { border-color: var(--border-medium); background: var(--bg-glass-hover); }
+    .job-card__header { display: flex; justify-content: space-between; align-items: flex-start; }
+    .job-card__title { font-size: var(--font-size-base); font-weight: 600; color: var(--text-primary); }
+    .job-card__company { font-size: var(--font-size-sm); color: var(--text-secondary); }
+    .job-card__meta { font-size: var(--font-size-xs); color: var(--text-tertiary); margin-top: 4px; }
+    .job-card__score { background: var(--accent-green); color: white; font-weight: 700; font-size: var(--font-size-xs); padding: 2px 8px; border-radius: var(--radius-full); }
+    .job-card__link { font-size: var(--font-size-sm); color: var(--accent-blue); text-decoration: none; }
+    .job-card__link:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <nav class="navbar" role="navigation" aria-label="Main navigation">
+    <div class="navbar__brand">🚀 JobCopilot</div>
+    <ul class="navbar__nav">
+      <li><a href="index.html" class="navbar__link">Dashboard</a></li>
+      <li><a href="jobs.html" class="navbar__link">Jobs</a></li>
+      <li><a href="today.html" class="navbar__link">⚡ Fresh</a></li>
+      <li><a href="india-feed.html" class="navbar__link">🇮🇳 India</a></li>
+      <li><a href="regional.html" class="navbar__link navbar__link--active" aria-current="page">🏠 Regional</a></li>
+      <li><a href="career-radar.html" class="navbar__link">🎯 Radar</a></li>
+      <li><a href="internships.html" class="navbar__link">🎓 Internships</a></li>
+      <li><a href="analytics.html" class="navbar__link">📊 Analytics</a></li>
+      <li><a href="saved.html" class="navbar__link">⭐ Saved</a></li>
+      <li><a href="watchlist.html" class="navbar__link">👀 Watchlist</a></li>
+    </ul>
+  </nav>
+
+  <main class="main-content">
+    <header class="page-header">
+      <h1 class="page-header__title">🏠 South India Fresher Radar</h1>
+      <p class="page-header__subtitle">Tamil Nadu, Bangalore & South India opportunities for freshers</p>
+    </header>
+
+    <!-- Tabs -->
+    <div class="radar-tabs" id="tabs">
+      <button class="radar-tab radar-tab--active" data-tab="tamilnadu">🏠 Tamil Nadu</button>
+      <button class="radar-tab" data-tab="bangalore">🏙 Bangalore</button>
+      <button class="radar-tab" data-tab="freshers">💼 Freshers</button>
+      <button class="radar-tab" data-tab="internships">🎓 Internships</button>
+      <button class="radar-tab" data-tab="engineering">🏭 Core Engineering</button>
+      <button class="radar-tab" data-tab="research">🔬 Research</button>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row" id="stats-row"></div>
+
+    <!-- District chips -->
+    <div class="district-chips" id="district-chips"></div>
+
+    <!-- Loading -->
+    <div id="loading-state">
+      <div class="skeleton skeleton--row"></div>
+      <div class="skeleton skeleton--row"></div>
+      <div class="skeleton skeleton--row"></div>
+    </div>
+
+    <!-- Jobs -->
+    <div id="jobs-container" style="display: none;"></div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script>
+  (function () {
+    'use strict';
+    var API = window.JobCopilotAPI;
+    var tabs = document.getElementById('tabs');
+    var statsRow = document.getElementById('stats-row');
+    var districtChips = document.getElementById('district-chips');
+    var loadingState = document.getElementById('loading-state');
+    var jobsContainer = document.getElementById('jobs-container');
+    var activeTab = 'tamilnadu';
+
+    var TAB_ENDPOINTS = {
+      tamilnadu: '/regional/tamilnadu',
+      bangalore: '/regional/bangalore',
+      freshers: '/regional/freshers',
+      internships: '/regional/internships',
+      engineering: '/regional/core-engineering',
+      research: '/regional/research',
+    };
+
+    function escapeHtml(s) { if (!s) return ''; var d = document.createElement('div'); d.appendChild(document.createTextNode(s)); return d.innerHTML; }
+
+    function showLoading() {
+      loadingState.style.display = '';
+      jobsContainer.style.display = 'none';
+      statsRow.innerHTML = '';
+      districtChips.innerHTML = '';
+    }
+
+    function createJobCard(job) {
+      var card = document.createElement('div');
+      card.className = 'job-card';
+      card.innerHTML =
+        '<div class="job-card__header"><div>' +
+          '<div class="job-card__title">' + escapeHtml(job.title) + '</div>' +
+          '<div class="job-card__company">' + escapeHtml(job.company) + '</div>' +
+        '</div><div class="job-card__score">' + (job.fresher_score || 0) + '</div></div>' +
+        '<div class="job-card__meta">📍 ' + escapeHtml(job.location) + ' · 📅 ' + escapeHtml(job.date_posted || '') + ' · 🔌 ' + escapeHtml(job.source_platform || '') + '</div>' +
+        '<a href="' + escapeHtml(job.job_url) + '" target="_blank" rel="noopener noreferrer" class="job-card__link">View ↗</a>';
+      return card;
+    }
+
+    function renderStats(stats) {
+      statsRow.innerHTML = '';
+      Object.entries(stats).forEach(function (entry) {
+        var div = document.createElement('div');
+        div.className = 'stat-card';
+        div.innerHTML = '<div class="stat-card__value">' + entry[1] + '</div><div class="stat-card__label">' + entry[0].replace(/_/g, ' ') + '</div>';
+        statsRow.appendChild(div);
+      });
+    }
+
+    function renderDistricts(districts) {
+      districtChips.innerHTML = '';
+      if (!districts || districts.length === 0) return;
+      districts.forEach(function (d) {
+        var chip = document.createElement('span');
+        chip.className = 'district-chip';
+        chip.innerHTML = escapeHtml(d.name) + ' <span class="district-chip__count">(' + d.count + ')</span>';
+        chip.addEventListener('click', function () { loadDistrict(d.name); });
+        districtChips.appendChild(chip);
+      });
+    }
+
+    function renderJobs(jobs) {
+      jobsContainer.innerHTML = '';
+      if (!jobs || jobs.length === 0) {
+        jobsContainer.innerHTML = '<div style="text-align:center;padding:var(--space-3xl);color:var(--text-secondary);"><div style="font-size:3rem;">📭</div><p>No jobs found in this category yet</p></div>';
+      } else {
+        jobs.forEach(function (job) { jobsContainer.appendChild(createJobCard(job)); });
+      }
+      loadingState.style.display = 'none';
+      jobsContainer.style.display = '';
+    }
+
+    async function loadTab(tab) {
+      activeTab = tab;
+      tabs.querySelectorAll('.radar-tab').forEach(function (t) {
+        t.classList.toggle('radar-tab--active', t.getAttribute('data-tab') === tab);
+      });
+      showLoading();
+
+      var endpoint = TAB_ENDPOINTS[tab];
+      var result = await API.request(endpoint);
+
+      if (!result.ok) {
+        renderJobs([]);
+        return;
+      }
+
+      var data = result.data;
+      if (data.stats) renderStats(data.stats);
+      if (data.districts) renderDistricts(data.districts);
+
+      // Find the jobs array in the response
+      var jobs = data.jobs || data.freshers || data.internships || data.research_jobs || data.core_engineering || [];
+      renderJobs(jobs);
+    }
+
+    async function loadDistrict(name) {
+      showLoading();
+      var result = await API.request('/regional/district/' + encodeURIComponent(name));
+      if (!result.ok) { renderJobs([]); return; }
+      var data = result.data;
+      if (data.stats) renderStats(data.stats);
+      districtChips.innerHTML = '';
+      renderJobs(data.jobs || []);
+    }
+
+    tabs.addEventListener('click', function (e) {
+      var tab = e.target.getAttribute('data-tab');
+      if (tab) loadTab(tab);
+    });
+
+    loadTab('tamilnadu');
+  })();
+  </script>
+</body>
+</html>
