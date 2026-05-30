@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JobCopilot — LinkedIn Jobs</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <nav class="navbar" role="navigation" aria-label="Main navigation">
+    <div class="navbar__brand">JobCopilot</div>
+    <ul class="navbar__nav">
+      <li><a href="index.html" class="navbar__link">Dashboard</a></li>
+      <li><a href="jobs.html" class="navbar__link">Jobs</a></li>
+      <li><a href="today.html" class="navbar__link">Fresh</a></li>
+      <li><a href="india-feed.html" class="navbar__link">India</a></li>
+      <li><a href="regional.html" class="navbar__link">Regional</a></li>
+      <li><a href="career-radar.html" class="navbar__link">Radar</a></li>
+      <li><a href="linkedin.html" class="navbar__link navbar__link--active" aria-current="page">LinkedIn</a></li>
+      <li><a href="internships.html" class="navbar__link">Internships</a></li>
+      <li><a href="analytics.html" class="navbar__link">Analytics</a></li>
+      <li><a href="saved.html" class="navbar__link">Saved</a></li>
+      <li><a href="watchlist.html" class="navbar__link">Watchlist</a></li>
+    </ul>
+  </nav>
+
+  <main class="main-content">
+    <header class="page-header">
+      <h1 class="page-header__title">LinkedIn Jobs</h1>
+      <p class="page-header__subtitle">MedTech opportunities from LinkedIn — Biomedical, Clinical, Research, Devices</p>
+    </header>
+
+    <!-- Tabs -->
+    <div style="display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap;">
+      <button class="btn btn--primary" id="tab-medtech" onclick="loadMedTech()">MedTech</button>
+      <button class="btn btn--secondary" id="tab-all" onclick="loadAll()">All LinkedIn</button>
+      <button class="btn btn--secondary" id="tab-hiring" onclick="loadHiring()">Hiring Now</button>
+    </div>
+
+    <!-- Company Search -->
+    <div style="display: flex; gap: 8px; margin-bottom: 24px;">
+      <input type="text" id="company-input" class="form-input" placeholder="Search company (e.g. Abbott, Philips)" style="flex: 1; max-width: 300px;">
+      <button class="btn btn--secondary" onclick="loadCompany()">Company Insights</button>
+    </div>
+
+    <!-- Stats -->
+    <div id="stats-bar" style="margin-bottom: 16px; font-size: 0.875rem; color: var(--text-tertiary);"></div>
+
+    <!-- Loading -->
+    <div id="loading-state">
+      <div class="skeleton skeleton--row"></div>
+      <div class="skeleton skeleton--row"></div>
+      <div class="skeleton skeleton--row"></div>
+    </div>
+
+    <!-- Results -->
+    <div id="results-container" style="display: none;"></div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script>
+  (function () {
+    var API = window.JobCopilotAPI;
+    var loading = document.getElementById('loading-state');
+    var results = document.getElementById('results-container');
+    var statsBar = document.getElementById('stats-bar');
+
+    function show(state) {
+      loading.style.display = state === 'loading' ? '' : 'none';
+      results.style.display = state === 'results' ? '' : 'none';
+    }
+
+    function esc(s) { if (!s) return ''; var d = document.createElement('div'); d.appendChild(document.createTextNode(s)); return d.innerHTML; }
+
+    function renderJobs(jobs) {
+      results.innerHTML = '';
+      if (!jobs || jobs.length === 0) {
+        results.innerHTML = '<div class="empty-state"><div class="empty-state__icon">📭</div><p class="empty-state__message">No LinkedIn jobs found</p></div>';
+        show('results');
+        return;
+      }
+      jobs.forEach(function (job) {
+        var skills = (job.skills || []).map(function (s) {
+          return '<span style="display:inline-block;padding:2px 8px;margin:2px;border-radius:12px;background:var(--bg-tertiary);font-size:0.75rem;color:var(--text-secondary);">' + esc(s) + '</span>';
+        }).join('');
+
+        var card = document.createElement('div');
+        card.className = 'job-card';
+        card.innerHTML =
+          '<div class="job-card__header"><div>' +
+            '<div class="job-card__title">' + esc(job.title) + '</div>' +
+            '<div class="job-card__company">' + esc(job.company) + '</div>' +
+          '</div></div>' +
+          '<div class="job-card__meta">' +
+            '<span>' + esc(job.location) + '</span>' +
+            '<span>' + esc(job.date_posted) + '</span>' +
+            (job.salary ? '<span>' + esc(job.salary) + '</span>' : '') +
+          '</div>' +
+          (skills ? '<div style="margin-top:8px;">' + skills + '</div>' : '') +
+          '<div style="margin-top:8px;"><a href="' + esc(job.job_url) + '" target="_blank" class="btn btn--primary btn--sm">Apply ↗</a></div>';
+        results.appendChild(card);
+      });
+      show('results');
+    }
+
+    function renderCompany(data) {
+      results.innerHTML = '';
+      var html = '<div class="card" style="margin-bottom:16px;">' +
+        '<h2 style="font-size:1.25rem;font-weight:700;margin-bottom:12px;">' + esc(data.company) + '</h2>' +
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:16px;">' +
+          '<div><div style="font-size:1.5rem;font-weight:700;color:var(--accent-blue);">' + data.total_jobs + '</div><div style="font-size:0.75rem;color:var(--text-tertiary);">Total Jobs</div></div>' +
+          '<div><div style="font-size:1.5rem;font-weight:700;color:var(--accent-green);">' + data.india_jobs + '</div><div style="font-size:0.75rem;color:var(--text-tertiary);">India Jobs</div></div>' +
+          '<div><div style="font-size:1.5rem;font-weight:700;color:var(--accent-purple);">' + data.fresher_jobs + '</div><div style="font-size:0.75rem;color:var(--text-tertiary);">Freshers</div></div>' +
+          '<div><div style="font-size:1.5rem;font-weight:700;">' + data.research_roles + '</div><div style="font-size:0.75rem;color:var(--text-tertiary);">Research</div></div>' +
+          '<div><div style="font-size:1.5rem;font-weight:700;">' + data.medtech_roles + '</div><div style="font-size:0.75rem;color:var(--text-tertiary);">MedTech</div></div>' +
+          '<div><div style="font-size:1.5rem;font-weight:700;">' + data.recent_jobs_7d + '</div><div style="font-size:0.75rem;color:var(--text-tertiary);">This Week</div></div>' +
+        '</div></div>';
+      results.innerHTML = html;
+      renderJobs(data.latest_jobs || []);
+    }
+
+    function renderHiring(data) {
+      results.innerHTML = '';
+      var html = '<div style="margin-bottom:16px;font-weight:600;">Companies Hiring This Week (' + data.total_companies + ')</div>';
+      (data.companies_hiring || []).forEach(function (c) {
+        var badge = c.is_medtech ? ' <span style="background:var(--accent-green-bg);color:var(--accent-green);padding:2px 6px;border-radius:8px;font-size:0.7rem;">MedTech</span>' : '';
+        html += '<div class="job-card" style="cursor:pointer;" onclick="document.getElementById(\'company-input\').value=\'' + esc(c.company) + '\';loadCompany();">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+            '<div><strong>' + esc(c.company) + '</strong>' + badge + '</div>' +
+            '<div style="font-weight:700;color:var(--accent-blue);">' + c.new_jobs + ' new</div>' +
+          '</div></div>';
+      });
+      results.innerHTML = html;
+      show('results');
+    }
+
+    window.loadMedTech = async function () {
+      show('loading');
+      var r = await API.request('/linkedin/medtech');
+      if (r.ok) { statsBar.textContent = r.data.total + ' MedTech jobs from LinkedIn'; renderJobs(r.data.jobs); }
+      else { show('results'); results.innerHTML = '<p>Error loading</p>'; }
+    };
+
+    window.loadAll = async function () {
+      show('loading');
+      var r = await API.request('/linkedin/jobs');
+      if (r.ok) { statsBar.textContent = r.data.total + ' total LinkedIn jobs'; renderJobs(r.data.jobs); }
+      else { show('results'); results.innerHTML = '<p>Error loading</p>'; }
+    };
+
+    window.loadHiring = async function () {
+      show('loading');
+      var r = await API.request('/linkedin/hiring-now');
+      if (r.ok) { statsBar.textContent = r.data.total_companies + ' companies hiring this week'; renderHiring(r.data); }
+      else { show('results'); results.innerHTML = '<p>Error loading</p>'; }
+    };
+
+    window.loadCompany = async function () {
+      var name = document.getElementById('company-input').value.trim();
+      if (!name) return;
+      show('loading');
+      var r = await API.request('/linkedin/company/' + encodeURIComponent(name));
+      if (r.ok) { statsBar.textContent = 'Company: ' + name; renderCompany(r.data); }
+      else { show('results'); results.innerHTML = '<p>Company not found</p>'; }
+    };
+
+    // Initial load
+    loadMedTech();
+  })();
+  </script>
+</body>
+</html>
