@@ -26,7 +26,7 @@ COLLECTIONS: list[CollectionDefinition] = [
     CollectionDefinition("Python Development", ["python", "django", "flask", "fastapi", "pandas"]),
     CollectionDefinition("Product Management", ["product manager", "product owner", "product management", "product strategy"]),
     CollectionDefinition("Healthcare AI", ["healthcare AI", "medical AI", "clinical AI", "health informatics", "medical imaging AI"]),
-    CollectionDefinition("Diagnostics and Biosensors", ["diagnostics", "biosensor", "point-of-care", "lateral flow", "PCR", "immunoassay"]),
+    CollectionDefinition("Diagnostics and Biosensors", ["diagnostics", "biosensor", "biosensing", "point-of-care", "lateral flow", "PCR", "immunoassay", "raman", "sers", "spectroscopy", "microfluidics", "biomarker", "sepsis", "wearable sensor"]),
 ]
 
 INTERNSHIP_KEYWORDS: list[str] = [
