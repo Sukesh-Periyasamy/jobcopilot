@@ -126,12 +126,23 @@ HIGH_PRIORITY_MAX_DAYS = 14
 ACTION_LIST_SCORE = 25
 ACTION_LIST_MAX_DAYS = 30
 
-# Freshness bonuses
+# Freshness bonuses (aggressive — today's jobs surface first)
 FRESHNESS_BONUSES = [
-    (3, 5),   # 0-3 days: +5
+    (0, 15),  # Today: +15
+    (1, 10),  # Yesterday: +10
+    (3, 7),   # 2-3 days: +7
     (7, 3),   # 4-7 days: +3
     (14, 1),  # 8-14 days: +1
 ]
+
+# ATS platform freshness bonuses (faster-updating platforms)
+PLATFORM_BONUSES: dict[str, int] = {
+    "greenhouse": 5,
+    "lever": 4,
+    "ashby": 3,
+    "workday": 1,
+    "successfactors": 1,
+}
 
 # Location bonuses
 REMOTE_BONUS = 2
@@ -481,7 +492,62 @@ class CareerRadarService:
         if company in watchlist_companies:
             score += WATCHLIST_BONUS
 
+        # ATS platform bonus (faster-updating platforms)
+        platform = job.get("source_platform", "").lower()
+        if platform in PLATFORM_BONUSES:
+            score += PLATFORM_BONUSES[platform]
+
         return score, matched_collections
+
+    def get_fresh_radar(self) -> dict:
+        """Return fresh high-scoring jobs for immediate action.
+
+        Filters: posted <= 3 days, score >= 20, India/Remote preferred,
+        excludes applied and saved jobs.
+
+        Returns:
+            Dict with fresh_matches list and stats.
+        """
+        scored_jobs, total_count = self._score_all_jobs()
+
+        repo = JobsRepository()
+        applied_urls = {j.get("job_url") for j in repo.get_applied_jobs()}
+        saved_urls = {j.get("job_url") for j in repo.get_saved_jobs()}
+        excluded_urls = applied_urls | saved_urls
+
+        now = datetime.now(timezone.utc)
+        fresh_matches = []
+
+        for job in scored_jobs:
+            if job.get("_score", 0) < 20:
+                break  # Sorted desc
+
+            # Freshness: posted <= 3 days
+            date_posted = job.get("date_posted", "")
+            if not date_posted:
+                continue
+            try:
+                posted = datetime.strptime(date_posted, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                if (now - posted).days > 3:
+                    continue
+            except (ValueError, TypeError):
+                continue
+
+            # Exclude applied/saved
+            if job.get("job_url") in excluded_urls:
+                continue
+
+            fresh_matches.append(self._format_job(job))
+            if len(fresh_matches) >= 50:
+                break
+
+        return {
+            "fresh_matches": fresh_matches,
+            "stats": {
+                "total_scored": total_count,
+                "fresh_count": len(fresh_matches),
+            },
+        }
 
     def get_telegram_summary(self) -> list[dict]:
         """Return top 10 matches formatted for Telegram notification.

@@ -61,6 +61,21 @@ def get_career_radar_india() -> dict:
         raise HTTPException(status_code=500, detail="Failed to compute India feed")
 
 
+@router.get("/career-radar/fresh")
+def get_career_radar_fresh() -> dict:
+    """Return fresh high-scoring jobs posted in the last 3 days.
+
+    Filters: posted <= 3 days, score >= 20, excludes applied/saved.
+    This is the instant action feed.
+    """
+    try:
+        service = CareerRadarService()
+        return service.get_fresh_radar()
+    except Exception as e:
+        logger.error("Error computing fresh radar: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to compute fresh radar")
+
+
 @router.get("/watchlist-alerts")
 def get_watchlist_alerts() -> dict:
     """Return new jobs from watchlist companies posted in the last 7 days.
