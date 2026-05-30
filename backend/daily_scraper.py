@@ -122,22 +122,10 @@ def _run_workflow() -> None:
         logger.error("Research scraper failed (non-fatal): %s", exc)
         research_result = ScrapeResult(jobs=[], errors=[str(exc)])
 
-    # 3.6. Run LinkedIn scraper (if available)
-    logger.info("Starting LinkedIn scrape.")
-    try:
-        from app.scraper.linkedin_scraper import scrape_linkedin_jobs
-        linkedin_result = scrape_linkedin_jobs()
-        logger.info(
-            "LinkedIn scrape completed: %d jobs collected, %d errors.",
-            len(linkedin_result.jobs),
-            len(linkedin_result.errors),
-        )
-    except ImportError:
-        logger.info("LinkedIn scraper not available (missing dependency). Skipping.")
-        linkedin_result = ScrapeResult(jobs=[], errors=[])
-    except Exception as exc:
-        logger.error("LinkedIn scraper failed (non-fatal): %s", exc)
-        linkedin_result = ScrapeResult(jobs=[], errors=[str(exc)])
+    # 3.6. LinkedIn scraper disabled — anonymous strategy deprecated by LinkedIn
+    # Jobs from LinkedIn are collected via JobSpy (on Render with Python 3.11)
+    # The linkedin-jobs-scraper package no longer works reliably without auth
+    linkedin_result = ScrapeResult(jobs=[], errors=[])
 
     # 4. Merge results
     merged_jobs = jobspy_result.jobs + jobhive_result.jobs + research_result.jobs + linkedin_result.jobs
