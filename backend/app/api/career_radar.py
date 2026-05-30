@@ -132,3 +132,32 @@ def get_career_radar() -> dict:
     except Exception as e:
         logger.error("Error computing career radar: %s", e)
         raise HTTPException(status_code=500, detail="Failed to compute career radar")
+
+
+@router.get("/research-radar")
+def get_research_radar() -> dict:
+    """Return research fellowship opportunities.
+
+    Filters for JRF, SRF, Project Associate, Research Associate
+    from Indian research institutions. Scored with biomedical profile.
+    """
+    try:
+        service = CareerRadarService()
+        return service.get_research_radar()
+    except Exception as e:
+        logger.error("Error computing research radar: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to compute research radar")
+
+
+@router.get("/career-radar/profile/biomedical")
+def get_biomedical_profile() -> dict:
+    """Return career radar scored with biomedical research profile.
+
+    Tuned for SERS, biosensors, diagnostics, medical devices research.
+    """
+    try:
+        service = CareerRadarService()
+        return service.get_biomedical_profile()
+    except Exception as e:
+        logger.error("Error computing biomedical profile: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to compute biomedical profile")

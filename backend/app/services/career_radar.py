@@ -35,6 +35,36 @@ COLLECTION_WEIGHTS: dict[str, int] = {
     "Product Management": 5,
 }
 
+# Biomedical research profile — tuned for SERS/biosensor/diagnostics research
+BIOMEDICAL_PROFILE_WEIGHTS: dict[str, int] = {
+    "Biomedical Engineering": 10,
+    "Medical Devices": 10,
+    "Research Engineering": 10,
+    "Diagnostics and Biosensors": 10,
+    "Medical Technology": 8,
+    "Healthcare AI": 7,
+    "Embedded Systems": 6,
+    "IoT": 5,
+    "Healthcare Technology": 5,
+    "Python Development": 4,
+    "Product Management": 2,
+}
+
+# Research fellowship keywords
+FELLOWSHIP_KEYWORDS: list[str] = [
+    "JRF",
+    "SRF",
+    "Project Associate",
+    "Project Assistant",
+    "Research Associate",
+    "Research Scientist",
+    "Research Fellow",
+    "Post-Doctoral",
+    "Postdoc",
+    "RA",
+    "Young Professional",
+]
+
 # Negative keywords — penalize irrelevant roles
 NEGATIVE_KEYWORDS: list[str] = [
     "sales",
@@ -277,6 +307,181 @@ class CareerRadarService:
                 "india_count": len(india_matches),
             },
         }
+
+    def get_research_radar(self) -> dict:
+        """Return research fellowship opportunities from Indian institutions.
+
+        Filters for JRF, SRF, Project Associate, Research Associate, etc.
+        from research institutions.
+
+        Returns:
+            Dict with categorized research fellowship matches.
+        """
+        db = get_database()
+        jobs_collection = db["jobs"]
+
+        # Build query matching fellowship keywords in title
+        import re
+        conditions = []
+        for kw in FELLOWSHIP_KEYWORDS:
+            conditions.append({"title": {"$regex": re.escape(kw), "$options": "i"}})
+
+        query = {"$or": conditions}
+        cursor = jobs_collection.find(query, {"_id": 0}).sort("date_posted", -1).limit(100)
+        all_fellowship_jobs = list(cursor)
+
+        # Also get jobs from research institutions
+        inst_conditions = []
+        for inst in RESEARCH_INSTITUTIONS:
+            inst_conditions.append({"company": {"$regex": re.escape(inst), "$options": "i"}})
+            inst_conditions.append({"description": {"$regex": re.escape(inst), "$options": "i"}})
+
+        inst_query = {"$or": inst_conditions}
+        inst_cursor = jobs_collection.find(inst_query, {"_id": 0}).sort("date_posted", -1).limit(50)
+        institution_jobs = list(inst_cursor)
+
+        # Merge and deduplicate by job_url
+        seen_urls = set()
+        merged = []
+        for job in all_fellowship_jobs + institution_jobs:
+            url = job.get("job_url", "")
+            if url not in seen_urls:
+                seen_urls.add(url)
+                merged.append(job)
+
+        # Score with biomedical profile
+        watchlist_companies = self._get_watchlist_companies()
+        scored = []
+        for job in merged:
+            score, collections = self._score_job_with_weights(job, watchlist_companies, BIOMEDICAL_PROFILE_WEIGHTS)
+            if score > 0:
+                job["_score"] = score
+                job["_collections"] = collections
+                scored.append(job)
+
+        scored.sort(key=lambda j: j["_score"], reverse=True)
+
+        # Categorize
+        jrf_srf = [j for j in scored if any(
+            kw.lower() in j.get("title", "").lower() for kw in ["jrf", "srf", "research fellow"]
+        )][:15]
+
+        project_associate = [j for j in scored if any(
+            kw.lower() in j.get("title", "").lower() for kw in ["project associate", "project assistant"]
+        )][:15]
+
+        research_associate = [j for j in scored if any(
+            kw.lower() in j.get("title", "").lower() for kw in ["research associate", "research scientist"]
+        )][:15]
+
+        return {
+            "all_fellowships": [self._format_job(j) for j in scored[:25]],
+            "jrf_srf": [self._format_job(j) for j in jrf_srf],
+            "project_associate": [self._format_job(j) for j in project_associate],
+            "research_associate": [self._format_job(j) for j in research_associate],
+            "stats": {
+                "total_fellowship_jobs": len(merged),
+                "scored_matches": len(scored),
+            },
+        }
+
+    def get_biomedical_profile(self) -> dict:
+        """Return career radar scored with biomedical research profile.
+
+        Uses BIOMEDICAL_PROFILE_WEIGHTS instead of default weights.
+        Tuned for SERS, biosensors, diagnostics, medical devices research.
+
+        Returns:
+            Dict with top_matches and stats.
+        """
+        db = get_database()
+        jobs_collection = db["jobs"]
+
+        cursor = jobs_collection.find({}, {"_id": 0})
+        all_jobs = list(cursor)
+
+        watchlist_companies = self._get_watchlist_companies()
+
+        scored_jobs = []
+        for job in all_jobs:
+            score, collections = self._score_job_with_weights(job, watchlist_companies, BIOMEDICAL_PROFILE_WEIGHTS)
+            if score >= MIN_SCORE:
+                job["_score"] = score
+                job["_collections"] = collections
+                scored_jobs.append(job)
+
+        scored_jobs.sort(key=lambda j: j["_score"], reverse=True)
+
+        return {
+            "top_matches": [self._format_job(j) for j in scored_jobs[:MAX_RESULTS_PER_CATEGORY]],
+            "stats": {
+                "total_scored": len(all_jobs),
+                "matches_found": len(scored_jobs),
+            },
+        }
+
+    def _score_job_with_weights(self, job: dict, watchlist_companies: set[str], weights: dict[str, int]) -> tuple[int, list[str]]:
+        """Score a job using a specific weight profile.
+
+        Same logic as _score_job but accepts custom weights.
+        """
+        score = 0
+        matched_collections: list[str] = []
+
+        title = job.get("title", "").lower()
+        description = job.get("description", "").lower()
+        combined = f"{title} {description}"
+
+        # Negative keyword penalty
+        for neg_kw in NEGATIVE_KEYWORDS:
+            if neg_kw.lower() in title:
+                score -= NEGATIVE_PENALTY
+                break
+
+        # Seniority penalty
+        for senior_kw in SENIOR_KEYWORDS:
+            if senior_kw in title:
+                score -= SENIOR_PENALTY
+                break
+
+        # Early career bonus
+        for ec_kw in EARLY_CAREER_KEYWORDS:
+            if ec_kw in title:
+                score += EARLY_CAREER_BONUS
+                break
+
+        # Collection matching with custom weights
+        for collection_def in COLLECTIONS:
+            weight = weights.get(collection_def.name, 0)
+            if weight == 0:
+                continue
+            for keyword in collection_def.keywords:
+                if keyword.lower() in combined:
+                    score += weight
+                    matched_collections.append(collection_def.name)
+                    break
+
+        # Freshness bonus
+        date_posted = job.get("date_posted", "")
+        if date_posted:
+            score += self._freshness_bonus(date_posted)
+
+        # Location bonuses
+        location = job.get("location", "").lower()
+        if "remote" in location:
+            score += REMOTE_BONUS
+        if "india" in location or any(
+            city in location
+            for city in ["bangalore", "hyderabad", "chennai", "pune", "mumbai", "delhi", "noida", "gurugram"]
+        ):
+            score += INDIA_BONUS
+
+        # Watchlist company bonus
+        company = job.get("company", "").lower()
+        if company in watchlist_companies:
+            score += WATCHLIST_BONUS
+
+        return score, matched_collections
 
     def get_telegram_summary(self) -> list[dict]:
         """Return top 10 matches formatted for Telegram notification.
