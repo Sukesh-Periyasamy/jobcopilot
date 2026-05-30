@@ -119,6 +119,28 @@ def search_jobs(
         raise HTTPException(status_code=500, detail="Failed to search jobs")
 
 
+@router.get("/jobs/smart-search")
+def smart_search_jobs(
+    q: str = Query(..., description="Search query (supports synonyms and weighted scoring)"),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(50, ge=1, le=100, description="Items per page"),
+) -> dict:
+    """Smart search with weighted scoring, synonym expansion, and suggestions.
+
+    Searches across title (10x), company (8x), location (4x), description (3x).
+    Expands queries with synonyms (e.g., 'biomedical' also searches 'medical device').
+    Returns suggestions when no results found.
+    """
+    try:
+        from app.services.smart_search import SmartSearchService
+
+        service = SmartSearchService()
+        return service.search(q, page=page, page_size=page_size)
+    except Exception as e:
+        logger.error("Error in smart search: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to search jobs")
+
+
 @router.get("/jobs/company/{name}", response_model=list[JobResponse])
 def get_jobs_by_company(name: str) -> list[JobResponse]:
     """Get all jobs from a specific company."""

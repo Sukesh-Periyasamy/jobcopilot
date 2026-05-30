@@ -1,0 +1,225 @@
+"""Smart Search Engine v2 for JobCopilot.
+
+Provides weighted multi-field search with synonym expansion,
+regex matching, and relevance scoring. Replaces basic $text search
+with a more intelligent approach.
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+from datetime import datetime, timedelta, timezone
+
+from app.database.connection import get_database
+
+logger = logging.getLogger(__name__)
+
+# Field weights for scoring
+FIELD_WEIGHTS = {
+    "title": 10,
+    "company": 8,
+    "location": 4,
+    "description": 3,
+}
+
+# Synonym mappings for expanded search
+SYNONYMS: dict[str, list[str]] = {
+    "biomedical": ["medical technology", "medical device", "healthcare", "diagnostics", "clinical"],
+    "medtech": ["medical technology", "medical device", "healthcare technology"],
+    "research": ["scientist", "research associate", "project associate", "jrf", "srf", "r&d"],
+    "embedded": ["firmware", "microcontroller", "esp32", "stm32", "rtos"],
+    "iot": ["internet of things", "connected devices", "smart devices", "edge computing", "wireless sensor"],
+    "python": ["django", "flask", "fastapi", "backend developer"],
+    "ai": ["machine learning", "deep learning", "artificial intelligence", "computer vision", "nlp"],
+    "healthcare": ["medical", "clinical", "health tech", "digital health", "telemedicine"],
+    "intern": ["internship", "trainee", "graduate engineer", "fresher"],
+    "remote": ["work from home", "wfh", "anywhere", "distributed"],
+    "bangalore": ["bengaluru", "karnataka"],
+    "gurgaon": ["gurugram"],
+    "delhi": ["noida", "new delhi", "ncr"],
+}
+
+# Suggestions when no results found
+SEARCH_SUGGESTIONS = [
+    "Biomedical Engineer",
+    "Medical Device",
+    "Research Associate",
+    "Python Developer",
+    "Embedded Systems",
+    "Healthcare AI",
+    "Abbott",
+    "Bangalore",
+    "Remote",
+    "Internship",
+]
+
+MAX_RESULTS = 100
+
+
+class SmartSearchService:
+    """Weighted multi-field search with synonym expansion."""
+
+    def search(self, query: str, page: int = 1, page_size: int = 50) -> dict:
+        """Perform smart search with weighted scoring.
+
+        Searches across title, company, location, and description
+        with different weights. Expands query with synonyms.
+
+        Args:
+            query: Search query string.
+            page: Page number (1-indexed).
+            page_size: Results per page.
+
+        Returns:
+            Dict with results, total, page, suggestions.
+        """
+        if not query or not query.strip():
+            return {
+                "results": [],
+                "total": 0,
+                "page": page,
+                "page_size": page_size,
+                "suggestions": SEARCH_SUGGESTIONS,
+            }
+
+        db = get_database()
+        jobs_collection = db["jobs"]
+
+        # Expand query with synonyms
+        search_terms = self._expand_query(query.strip())
+
+        # Build MongoDB OR query across all fields
+        or_conditions = []
+        for term in search_terms:
+            escaped = re.escape(term)
+            or_conditions.append({"title": {"$regex": escaped, "$options": "i"}})
+            or_conditions.append({"company": {"$regex": escaped, "$options": "i"}})
+            or_conditions.append({"location": {"$regex": escaped, "$options": "i"}})
+            or_conditions.append({"description": {"$regex": escaped, "$options": "i"}})
+
+        mongo_query = {"$or": or_conditions}
+
+        # Fetch matching jobs (limit to MAX_RESULTS for scoring)
+        cursor = jobs_collection.find(mongo_query, {"_id": 0}).limit(MAX_RESULTS)
+        matching_jobs = list(cursor)
+
+        # Score and rank
+        scored_jobs = []
+        for job in matching_jobs:
+            score = self._score_job(job, search_terms)
+            job["_search_score"] = score
+            scored_jobs.append(job)
+
+        # Sort by score descending
+        scored_jobs.sort(key=lambda j: j["_search_score"], reverse=True)
+
+        # Paginate
+        total = len(scored_jobs)
+        start = (page - 1) * page_size
+        end = start + page_size
+        page_results = scored_jobs[start:end]
+
+        # Format results
+        results = [self._format_result(job) for job in page_results]
+
+        # Generate suggestions if no results
+        suggestions = []
+        if not results:
+            suggestions = SEARCH_SUGGESTIONS
+
+        return {
+            "results": results,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "query": query,
+            "expanded_terms": search_terms,
+            "suggestions": suggestions,
+        }
+
+    def _expand_query(self, query: str) -> list[str]:
+        """Expand query with synonyms.
+
+        Returns the original query plus any synonym matches.
+        """
+        terms = [query]
+        query_lower = query.lower()
+
+        # Check each synonym key
+        for key, synonyms in SYNONYMS.items():
+            if key in query_lower:
+                terms.extend(synonyms)
+
+        # Also check if query matches any synonym value
+        for key, synonyms in SYNONYMS.items():
+            for syn in synonyms:
+                if syn in query_lower:
+                    terms.append(key)
+                    break
+
+        # Deduplicate while preserving order
+        seen = set()
+        unique_terms = []
+        for term in terms:
+            if term.lower() not in seen:
+                seen.add(term.lower())
+                unique_terms.append(term)
+
+        return unique_terms
+
+    def _score_job(self, job: dict, search_terms: list[str]) -> int:
+        """Score a job based on which fields match which terms.
+
+        Higher weight fields contribute more to the score.
+        """
+        score = 0
+
+        for term in search_terms:
+            term_lower = term.lower()
+
+            # Title match (highest weight)
+            if term_lower in job.get("title", "").lower():
+                score += FIELD_WEIGHTS["title"]
+
+            # Company match
+            if term_lower in job.get("company", "").lower():
+                score += FIELD_WEIGHTS["company"]
+
+            # Location match
+            if term_lower in job.get("location", "").lower():
+                score += FIELD_WEIGHTS["location"]
+
+            # Description match (lowest weight, checked last)
+            if term_lower in job.get("description", "").lower():
+                score += FIELD_WEIGHTS["description"]
+
+        # Freshness bonus
+        date_posted = job.get("date_posted", "")
+        if date_posted:
+            try:
+                posted = datetime.strptime(date_posted, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                days_old = (datetime.now(timezone.utc) - posted).days
+                if days_old <= 3:
+                    score += 3
+                elif days_old <= 7:
+                    score += 2
+                elif days_old <= 14:
+                    score += 1
+            except (ValueError, TypeError):
+                pass
+
+        return score
+
+    def _format_result(self, job: dict) -> dict:
+        """Format a scored job for the search response."""
+        return {
+            "title": job.get("title", ""),
+            "company": job.get("company", ""),
+            "location": job.get("location", ""),
+            "job_url": job.get("job_url", ""),
+            "date_posted": job.get("date_posted", ""),
+            "source_platform": job.get("source_platform", ""),
+            "description": job.get("description", "")[:200],  # Truncate for response size
+            "search_score": job.get("_search_score", 0),
+        }
