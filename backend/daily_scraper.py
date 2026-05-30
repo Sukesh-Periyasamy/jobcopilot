@@ -122,9 +122,26 @@ def _run_workflow() -> None:
         logger.error("Research scraper failed (non-fatal): %s", exc)
         research_result = ScrapeResult(jobs=[], errors=[str(exc)])
 
+    # 3.6. Run LinkedIn scraper (if available)
+    logger.info("Starting LinkedIn scrape.")
+    try:
+        from app.scraper.linkedin_scraper import scrape_linkedin_jobs
+        linkedin_result = scrape_linkedin_jobs()
+        logger.info(
+            "LinkedIn scrape completed: %d jobs collected, %d errors.",
+            len(linkedin_result.jobs),
+            len(linkedin_result.errors),
+        )
+    except ImportError:
+        logger.info("LinkedIn scraper not available (missing dependency). Skipping.")
+        linkedin_result = ScrapeResult(jobs=[], errors=[])
+    except Exception as exc:
+        logger.error("LinkedIn scraper failed (non-fatal): %s", exc)
+        linkedin_result = ScrapeResult(jobs=[], errors=[str(exc)])
+
     # 4. Merge results
-    merged_jobs = jobspy_result.jobs + jobhive_result.jobs + research_result.jobs
-    merged_errors = jobspy_result.errors + jobhive_result.errors + research_result.errors
+    merged_jobs = jobspy_result.jobs + jobhive_result.jobs + research_result.jobs + linkedin_result.jobs
+    merged_errors = jobspy_result.errors + jobhive_result.errors + research_result.errors + linkedin_result.errors
     merged_result = ScrapeResult(jobs=merged_jobs, errors=merged_errors)
     logger.info(
         "Merged scrape results: %d total jobs, %d total errors.",

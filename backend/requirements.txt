@@ -12,3 +12,4 @@ jobhive-py
 openpyxl
 pyarrow>=18.0.0
 pandas
+linkedin-jobs-scraper
