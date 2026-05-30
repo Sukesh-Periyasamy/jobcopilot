@@ -307,3 +307,112 @@ def get_freshers_today() -> dict:
     except Exception as e:
         logger.error("Error fetching today's freshers: %s", e)
         raise HTTPException(status_code=500, detail="Failed to fetch today's fresher jobs")
+
+
+@router.get("/daily-targets")
+def get_daily_targets() -> dict:
+    """Return the top 20 daily application targets.
+
+    Rules:
+    - India only (or Remote)
+    - Posted <= 7 days
+    - Career Radar score >= 25
+    - Fresher friendly (fresher_score >= 0, no senior penalty)
+    - Not already applied
+    - Not already saved
+
+    This is the single most useful endpoint — your daily application queue.
+    """
+    try:
+        from datetime import datetime, timedelta, timezone
+
+        from app.database.connection import get_database
+        from app.database.repository import JobsRepository
+        from app.services.career_radar import CareerRadarService
+
+        db = get_database()
+        jobs_col = db["jobs"]
+
+        # Last 7 days
+        seven_days_ago = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
+
+        # India locations
+        india_locations = [
+            "india", "bangalore", "bengaluru", "chennai", "coimbatore",
+            "hyderabad", "pune", "mumbai", "delhi", "noida", "gurgaon",
+            "gurugram", "remote", "erode", "salem", "madurai", "trichy",
+            "hosur", "vellore",
+        ]
+        loc_conditions = [
+            {"location": {"$regex": loc, "$options": "i"}}
+            for loc in india_locations
+        ]
+
+        query = {
+            "$and": [
+                {"date_posted": {"$gte": seven_days_ago}},
+                {"$or": loc_conditions},
+            ]
+        }
+
+        cursor = jobs_col.find(query, {"_id": 0}).sort("date_posted", -1).limit(200)
+        india_recent_jobs = list(cursor)
+
+        # Get exclusions
+        repo = JobsRepository()
+        applied_urls = {j.get("job_url") for j in repo.get_applied_jobs()}
+        saved_urls = {j.get("job_url") for j in repo.get_saved_jobs()}
+        excluded = applied_urls | saved_urls
+
+        # Score with career radar
+        radar = CareerRadarService()
+        watchlist_companies = radar._get_watchlist_companies()
+
+        # Also get fresher scoring
+        service = RegionalRadarService()
+
+        targets = []
+        for job in india_recent_jobs:
+            if job.get("job_url") in excluded:
+                continue
+
+            # Career radar score
+            career_score, collections = radar._score_job(job, watchlist_companies)
+            if career_score < 25:
+                continue
+
+            # Fresher score (bonus, not filter)
+            fresher_score = service._fresher_score(job)
+
+            # Combined score
+            combined_score = career_score + max(fresher_score, 0)
+
+            targets.append({
+                "title": job.get("title", ""),
+                "company": job.get("company", ""),
+                "location": job.get("location", ""),
+                "job_url": job.get("job_url", ""),
+                "date_posted": job.get("date_posted", ""),
+                "source_platform": job.get("source_platform", ""),
+                "career_score": career_score,
+                "fresher_score": fresher_score,
+                "combined_score": combined_score,
+                "collections": collections,
+            })
+
+        # Sort by combined score
+        targets.sort(key=lambda j: j["combined_score"], reverse=True)
+
+        return {
+            "daily_targets": targets[:20],
+            "stats": {
+                "india_recent_jobs": len(india_recent_jobs),
+                "qualified_targets": len(targets),
+                "returned": min(len(targets), 20),
+                "period": "last 7 days",
+                "min_career_score": 25,
+            },
+        }
+    except Exception as e:
+        logger.error("Error computing daily targets: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to compute daily targets")
