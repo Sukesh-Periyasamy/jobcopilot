@@ -92,3 +92,140 @@ def get_district(district: str) -> dict:
     except Exception as e:
         logger.error("Error fetching district jobs for '%s': %s", district, e)
         raise HTTPException(status_code=500, detail="Failed to fetch district jobs")
+
+
+@router.get("/freshers/bangalore")
+def get_freshers_bangalore() -> dict:
+    """Return fresher jobs specifically in Bangalore."""
+    try:
+        service = RegionalRadarService()
+        result = service.get_bangalore()
+        # Filter to only fresher-friendly
+        fresher_jobs = [j for j in result.get("jobs", []) if j.get("fresher_score", 0) >= 10]
+        return {
+            "jobs": fresher_jobs,
+            "stats": {"count": len(fresher_jobs), "region": "Bangalore"},
+        }
+    except Exception as e:
+        logger.error("Error fetching Bangalore freshers: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to fetch fresher jobs")
+
+
+@router.get("/freshers/tamilnadu")
+def get_freshers_tamilnadu() -> dict:
+    """Return fresher jobs specifically in Tamil Nadu."""
+    try:
+        service = RegionalRadarService()
+        result = service.get_tamil_nadu()
+        fresher_jobs = [j for j in result.get("jobs", []) if j.get("fresher_score", 0) >= 10]
+        return {
+            "jobs": fresher_jobs,
+            "stats": {"count": len(fresher_jobs), "region": "Tamil Nadu"},
+        }
+    except Exception as e:
+        logger.error("Error fetching Tamil Nadu freshers: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to fetch fresher jobs")
+
+
+@router.get("/freshers/medical-tech")
+def get_freshers_medical_tech() -> dict:
+    """Return fresher medical technology jobs in India."""
+    try:
+        import re
+        from app.database.connection import get_database
+        from app.services.constants import COLLECTIONS
+
+        db = get_database()
+        jobs_col = db["jobs"]
+
+        # Medical tech keywords
+        medtech_keywords = []
+        for c in COLLECTIONS:
+            if c.name in ("Medical Technology", "Medical Devices", "Biomedical Engineering", "Diagnostics and Biosensors", "Healthcare AI"):
+                medtech_keywords.extend(c.keywords)
+
+        # Build query: medtech keywords + India location
+        keyword_conditions = []
+        for kw in medtech_keywords:
+            keyword_conditions.append({"title": {"$regex": re.escape(kw), "$options": "i"}})
+            keyword_conditions.append({"description": {"$regex": re.escape(kw), "$options": "i"}})
+
+        india_locations = ["india", "bangalore", "bengaluru", "chennai", "hyderabad", "pune", "mumbai", "delhi", "gurgaon", "remote"]
+        loc_conditions = [{"location": {"$regex": re.escape(loc), "$options": "i"}} for loc in india_locations]
+
+        query = {"$and": [{"$or": keyword_conditions}, {"$or": loc_conditions}]}
+        cursor = jobs_col.find(query, {"_id": 0}).sort("date_posted", -1).limit(50)
+        jobs = list(cursor)
+
+        # Score for freshers
+        service = RegionalRadarService()
+        scored = []
+        for job in jobs:
+            score = service._fresher_score(job)
+            scored.append({
+                "title": job.get("title", ""),
+                "company": job.get("company", ""),
+                "location": job.get("location", ""),
+                "job_url": job.get("job_url", ""),
+                "date_posted": job.get("date_posted", ""),
+                "source_platform": job.get("source_platform", ""),
+                "fresher_score": score,
+            })
+
+        scored.sort(key=lambda j: j["fresher_score"], reverse=True)
+
+        return {
+            "jobs": scored,
+            "stats": {"count": len(scored), "category": "Medical Technology Freshers India"},
+        }
+    except Exception as e:
+        logger.error("Error fetching medical tech freshers: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to fetch medical tech fresher jobs")
+
+
+@router.get("/freshers/research")
+def get_freshers_research() -> dict:
+    """Return fresher research positions (JRF/SRF/RA) in India."""
+    try:
+        import re
+        from app.database.connection import get_database
+
+        db = get_database()
+        jobs_col = db["jobs"]
+
+        research_keywords = ["jrf", "srf", "project associate", "project assistant",
+                           "research associate", "research assistant", "research fellow",
+                           "young professional"]
+
+        conditions = [{"title": {"$regex": re.escape(kw), "$options": "i"}} for kw in research_keywords]
+
+        india_locations = ["india", "bangalore", "bengaluru", "chennai", "hyderabad", "pune", "mumbai", "delhi", "remote"]
+        loc_conditions = [{"location": {"$regex": re.escape(loc), "$options": "i"}} for loc in india_locations]
+
+        query = {"$and": [{"$or": conditions}, {"$or": loc_conditions}]}
+        cursor = jobs_col.find(query, {"_id": 0}).sort("date_posted", -1).limit(50)
+        jobs = list(cursor)
+
+        service = RegionalRadarService()
+        scored = []
+        for job in jobs:
+            score = service._fresher_score(job)
+            scored.append({
+                "title": job.get("title", ""),
+                "company": job.get("company", ""),
+                "location": job.get("location", ""),
+                "job_url": job.get("job_url", ""),
+                "date_posted": job.get("date_posted", ""),
+                "source_platform": job.get("source_platform", ""),
+                "fresher_score": score,
+            })
+
+        scored.sort(key=lambda j: j["fresher_score"], reverse=True)
+
+        return {
+            "jobs": scored,
+            "stats": {"count": len(scored), "category": "Research Freshers India"},
+        }
+    except Exception as e:
+        logger.error("Error fetching research freshers: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to fetch research fresher jobs")
