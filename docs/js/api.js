@@ -3,7 +3,7 @@
  * Handles all communication with the FastAPI backend on Render.
  */
 
-const API_BASE = 'https://jobcopilot.onrender.com';
+const API_BASE = 'https://jobcopilot-uydv.onrender.com';
 
 /**
  * Internal helper: performs a fetch request and returns a structured response.

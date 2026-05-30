@@ -24,7 +24,10 @@ app = FastAPI(title="JobCopilot API", version="1.0.0")
 # CORS middleware for GitHub Pages frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://sukeshperiyasamy.github.io"],
+    allow_origins=[
+        "https://sukeshperiyasamy.github.io",
+        "https://jobcopilot-uydv.onrender.com",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
