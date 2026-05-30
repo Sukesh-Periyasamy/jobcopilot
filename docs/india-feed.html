@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JobCopilot — India Feed</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .feed-stats {
+      display: flex;
+      gap: var(--space-lg);
+      margin-bottom: var(--space-xl);
+    }
+    .feed-stat {
+      background: var(--bg-glass);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: var(--space-md) var(--space-lg);
+      backdrop-filter: blur(8px);
+    }
+    .feed-stat__value {
+      font-size: var(--font-size-2xl);
+      font-weight: 700;
+      color: var(--accent-green);
+    }
+    .feed-stat__label {
+      font-size: var(--font-size-sm);
+      color: var(--text-secondary);
+    }
+    .job-card {
+      background: var(--bg-glass);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: var(--space-lg);
+      margin-bottom: var(--space-md);
+      backdrop-filter: blur(8px);
+      transition: var(--transition-fast);
+    }
+    .job-card:hover {
+      border-color: var(--border-medium);
+      background: var(--bg-glass-hover);
+    }
+    .job-card__header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: var(--space-sm);
+    }
+    .job-card__score {
+      background: var(--accent-green);
+      color: white;
+      font-weight: 700;
+      font-size: var(--font-size-sm);
+      padding: 2px 10px;
+      border-radius: var(--radius-full);
+      white-space: nowrap;
+    }
+    .job-card__title {
+      font-size: var(--font-size-lg);
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+    .job-card__company {
+      color: var(--text-secondary);
+      font-size: var(--font-size-sm);
+    }
+    .job-card__meta {
+      display: flex;
+      gap: var(--space-md);
+      font-size: var(--font-size-sm);
+      color: var(--text-tertiary);
+      margin-bottom: var(--space-sm);
+    }
+    .job-card__collections {
+      display: flex;
+      gap: var(--space-xs);
+      flex-wrap: wrap;
+      margin-bottom: var(--space-sm);
+    }
+    .job-card__tag {
+      font-size: var(--font-size-xs);
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      background: rgba(34, 197, 94, 0.15);
+      color: var(--accent-green);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+    .job-card__link {
+      display: inline-block;
+      font-size: var(--font-size-sm);
+      color: var(--accent-blue);
+      text-decoration: none;
+    }
+    .job-card__link:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar" role="navigation" aria-label="Main navigation">
+    <div class="navbar__brand">🚀 JobCopilot</div>
+    <ul class="navbar__nav">
+      <li><a href="index.html" class="navbar__link">Dashboard</a></li>
+      <li><a href="jobs.html" class="navbar__link">Jobs</a></li>
+      <li><a href="internships.html" class="navbar__link">Internships</a></li>
+      <li><a href="analytics.html" class="navbar__link">Analytics</a></li>
+      <li><a href="career-radar.html" class="navbar__link">Career Radar</a></li>
+      <li><a href="india-feed.html" class="navbar__link navbar__link--active" aria-current="page">🇮🇳 India</a></li>
+      <li><a href="saved.html" class="navbar__link">Saved</a></li>
+      <li><a href="watchlist.html" class="navbar__link">Watchlist</a></li>
+    </ul>
+  </nav>
+
+  <main class="main-content">
+    <header class="page-header">
+      <h1 class="page-header__title">🇮🇳 India Feed</h1>
+      <p class="page-header__subtitle">Opportunities in Bangalore, Hyderabad, Chennai, Pune, Mumbai, Gurgaon & Remote India</p>
+    </header>
+
+    <!-- Stats -->
+    <div id="feed-stats" class="feed-stats" style="display: none;">
+      <div class="feed-stat">
+        <div class="feed-stat__value" id="stat-india-count">0</div>
+        <div class="feed-stat__label">India Matches</div>
+      </div>
+      <div class="feed-stat">
+        <div class="feed-stat__value" id="stat-total">0</div>
+        <div class="feed-stat__label">Total Jobs Scored</div>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div id="loading-state">
+      <div class="skeleton skeleton--row"></div>
+      <div class="skeleton skeleton--row"></div>
+      <div class="skeleton skeleton--row"></div>
+      <div class="skeleton skeleton--row"></div>
+      <div class="skeleton skeleton--row"></div>
+    </div>
+
+    <!-- Error -->
+    <div id="error-state" style="display: none;">
+      <div style="text-align: center; padding: var(--space-3xl); color: var(--text-secondary);">
+        <div style="font-size: 3rem; margin-bottom: var(--space-md);">⚠️</div>
+        <p>Unable to load India feed. Is the backend running?</p>
+        <button class="btn btn--primary" id="retry-btn" style="margin-top: var(--space-md);">Retry</button>
+      </div>
+    </div>
+
+    <!-- Job Cards -->
+    <div id="jobs-container" style="display: none;"></div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script>
+  (function () {
+    'use strict';
+
+    var loadingState = document.getElementById('loading-state');
+    var errorState = document.getElementById('error-state');
+    var jobsContainer = document.getElementById('jobs-container');
+    var feedStats = document.getElementById('feed-stats');
+    var statIndiaCount = document.getElementById('stat-india-count');
+    var statTotal = document.getElementById('stat-total');
+    var retryBtn = document.getElementById('retry-btn');
+
+    function showState(state) {
+      loadingState.style.display = state === 'loading' ? '' : 'none';
+      errorState.style.display = state === 'error' ? '' : 'none';
+      jobsContainer.style.display = state === 'jobs' ? '' : 'none';
+      feedStats.style.display = state === 'jobs' ? '' : 'none';
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      var div = document.createElement('div');
+      div.appendChild(document.createTextNode(str));
+      return div.innerHTML;
+    }
+
+    function createJobCard(job) {
+      var card = document.createElement('div');
+      card.className = 'job-card';
+
+      var collections = (job.collections || [])
+        .map(function (c) { return '<span class="job-card__tag">' + escapeHtml(c) + '</span>'; })
+        .join('');
+
+      card.innerHTML =
+        '<div class="job-card__header">' +
+          '<div>' +
+            '<div class="job-card__title">' + escapeHtml(job.title) + '</div>' +
+            '<div class="job-card__company">' + escapeHtml(job.company) + '</div>' +
+          '</div>' +
+          '<div class="job-card__score">⭐ ' + job.score + '</div>' +
+        '</div>' +
+        '<div class="job-card__meta">' +
+          '<span>📍 ' + escapeHtml(job.location || 'India') + '</span>' +
+          '<span>📅 ' + escapeHtml(job.date_posted || '') + '</span>' +
+          '<span>🔌 ' + escapeHtml(job.source_platform || '') + '</span>' +
+        '</div>' +
+        (collections ? '<div class="job-card__collections">' + collections + '</div>' : '') +
+        '<a href="' + escapeHtml(job.job_url) + '" target="_blank" rel="noopener noreferrer" class="job-card__link">View Job ↗</a>';
+
+      return card;
+    }
+
+    async function loadIndiaFeed() {
+      showState('loading');
+
+      var result = await window.JobCopilotAPI.request('/career-radar/india');
+
+      if (!result.ok) {
+        showState('error');
+        return;
+      }
+
+      var data = result.data;
+
+      // Stats
+      statIndiaCount.textContent = data.stats.india_count || 0;
+      statTotal.textContent = data.stats.total_scored || 0;
+
+      // Render jobs
+      jobsContainer.innerHTML = '';
+      var matches = data.india_matches || [];
+
+      if (matches.length === 0) {
+        jobsContainer.innerHTML = '<div style="text-align: center; padding: var(--space-3xl); color: var(--text-secondary);"><div style="font-size: 3rem;">📭</div><p>No India opportunities found yet. Run a scrape to populate.</p></div>';
+      } else {
+        matches.forEach(function (job) {
+          jobsContainer.appendChild(createJobCard(job));
+        });
+      }
+
+      showState('jobs');
+    }
+
+    retryBtn.addEventListener('click', loadIndiaFeed);
+    loadIndiaFeed();
+  })();
+  </script>
+</body>
+</html>
