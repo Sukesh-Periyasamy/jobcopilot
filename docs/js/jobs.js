@@ -1,270 +1,256 @@
 /**
- * JobCopilot — Jobs Feed Page Logic
- * Fetches paginated jobs with filters, renders table with Apply/Save actions.
+ * JobCopilot — Jobs Page with Universal Smart Search
+ * Uses /jobs/smart-search for weighted, synonym-expanded search.
+ * Falls back to /jobs for initial load (all jobs).
  */
 
 (function () {
+  'use strict';
+
   const API = window.JobCopilotAPI;
   const UI = window.JobCopilotUI;
 
-  const jobsTableContainer = document.getElementById('jobs-table-container');
-  const paginationContainer = document.getElementById('pagination-container');
+  // DOM
+  const searchInput = document.getElementById('search-input');
+  const searchBtn = document.getElementById('search-btn');
+  const facetsContainer = document.getElementById('facets-container');
+  const searchMeta = document.getElementById('search-meta');
+  const resultsContainer = document.getElementById('results-container');
+  const exportCsvBtn = document.getElementById('btn-export-csv');
+  const exportXlsxBtn = document.getElementById('btn-export-xlsx');
 
-  // Filter elements
-  const filterSource = document.getElementById('filter-source');
-  const filterLocation = document.getElementById('filter-location');
-  const filterCompany = document.getElementById('filter-company');
-  const filterKeyword = document.getElementById('filter-keyword');
-  const filterJobType = document.getElementById('filter-job-type');
-  const filterDateFrom = document.getElementById('filter-date-from');
-  const filterDateTo = document.getElementById('filter-date-to');
-  const btnApplyFilters = document.getElementById('btn-apply-filters');
-  const btnClearFilters = document.getElementById('btn-clear-filters');
-  const btnExportCsv = document.getElementById('btn-export-csv');
-  const btnExportXlsx = document.getElementById('btn-export-xlsx');
-
+  let currentQuery = '';
   let currentPage = 1;
   const pageSize = 50;
 
   /**
-   * Gather current filter values.
+   * Perform smart search and render results.
    */
-  function getFilters() {
-    var selectedOption = filterSource.options[filterSource.selectedIndex];
-    var filterType = selectedOption.getAttribute('data-filter') || 'source';
-    var filterValue = filterSource.value;
-
-    var filters = {
-      location: filterLocation.value.trim(),
-      company: filterCompany.value.trim(),
-      keyword: filterKeyword.value.trim(),
-      job_type: filterJobType.value,
-      date_from: filterDateFrom.value,
-      date_to: filterDateTo.value,
-    };
-
-    if (filterValue) {
-      filters[filterType] = filterValue;
-    }
-
-    return filters;
-  }
-
-  /**
-   * Load jobs with current filters and page.
-   */
-  async function loadJobs(page) {
+  async function doSearch(query, page) {
+    currentQuery = query;
     currentPage = page || 1;
 
-    // Show loading skeletons
-    jobsTableContainer.innerHTML = '';
-    for (let i = 0; i < 6; i++) {
-      var skel = document.createElement('div');
-      skel.className = 'skeleton skeleton--row';
-      jobsTableContainer.appendChild(skel);
+    showLoading();
+
+    let result;
+    if (!query || !query.trim()) {
+      // No query — show all jobs
+      result = await API.getJobs({ page: currentPage, page_size: pageSize });
+      if (result.ok) {
+        renderJobsTable(result.data.jobs || []);
+        searchMeta.style.display = '';
+        searchMeta.textContent = result.data.total + ' total jobs';
+        facetsContainer.style.display = 'none';
+      } else {
+        showError();
+      }
+      return;
     }
-    paginationContainer.innerHTML = '';
 
-    const filters = getFilters();
-    const params = Object.assign({}, filters, {
-      page: currentPage,
-      page_size: pageSize,
-    });
-
-    const result = await API.getJobs(params);
+    // Smart search
+    result = await API.request('/jobs/smart-search?q=' + encodeURIComponent(query) + '&page=' + currentPage + '&page_size=' + pageSize);
 
     if (!result.ok) {
-      jobsTableContainer.innerHTML = '';
-      jobsTableContainer.appendChild(UI.createEmptyState('Unable to load jobs. Is the backend running?', '⚠️'));
+      showError();
       return;
     }
 
     const data = result.data;
-    const jobs = data.jobs || [];
-    const totalPages = data.total_pages || 1;
 
-    if (jobs.length === 0) {
-      jobsTableContainer.innerHTML = '';
-      jobsTableContainer.appendChild(UI.createEmptyState('No jobs match your filters.', '🔍'));
-      paginationContainer.innerHTML = '';
+    // Meta
+    searchMeta.style.display = '';
+    searchMeta.textContent = data.total + ' results for "' + data.query + '"' +
+      (data.expanded_terms && data.expanded_terms.length > 1 ? ' (also searched: ' + data.expanded_terms.slice(1).join(', ') + ')' : '');
+
+    // Facets
+    if (data.facets && data.total > 0) {
+      renderFacets(data.facets);
+    } else {
+      facetsContainer.style.display = 'none';
+    }
+
+    // Results
+    if (data.results && data.results.length > 0) {
+      renderSmartResults(data.results);
+    } else if (data.suggestions && data.suggestions.length > 0) {
+      renderSuggestions(data.suggestions);
+    } else {
+      renderEmpty();
+    }
+  }
+
+  function showLoading() {
+    resultsContainer.innerHTML = '';
+    for (var i = 0; i < 5; i++) {
+      var sk = document.createElement('div');
+      sk.className = 'skeleton skeleton--row';
+      resultsContainer.appendChild(sk);
+    }
+    facetsContainer.style.display = 'none';
+    searchMeta.style.display = 'none';
+  }
+
+  function showError() {
+    resultsContainer.innerHTML = '';
+    var el = document.createElement('div');
+    el.className = 'empty-state';
+    el.innerHTML = '<div class="empty-state__icon">⚠️</div><p class="empty-state__message">Failed to load jobs</p>';
+    resultsContainer.appendChild(el);
+  }
+
+  function renderEmpty() {
+    resultsContainer.innerHTML = '';
+    var el = document.createElement('div');
+    el.className = 'empty-state';
+    el.innerHTML = '<div class="empty-state__icon">📭</div><p class="empty-state__message">No jobs found</p>';
+    resultsContainer.appendChild(el);
+  }
+
+  function renderSuggestions(suggestions) {
+    resultsContainer.innerHTML = '';
+    var el = document.createElement('div');
+    el.className = 'empty-state';
+    var links = suggestions.map(function (s) {
+      return '<a class="suggestion-link" style="color: var(--accent-blue); cursor: pointer; margin: 0 4px;">' + escapeHtml(s) + '</a>';
+    }).join(' · ');
+    el.innerHTML = '<div class="empty-state__icon">🔍</div>' +
+      '<p class="empty-state__message">No exact matches found</p>' +
+      '<p style="color: var(--text-secondary); font-size: var(--font-size-sm);">Try: ' + links + '</p>';
+    resultsContainer.appendChild(el);
+
+    // Add click handlers to suggestions
+    el.querySelectorAll('.suggestion-link').forEach(function (link) {
+      link.addEventListener('click', function () {
+        searchInput.value = link.textContent;
+        doSearch(link.textContent, 1);
+      });
+    });
+  }
+
+  function renderSmartResults(results) {
+    resultsContainer.innerHTML = '';
+    var headers = ['Score', 'Title', 'Company', 'Location', 'Date', 'Link'];
+    var rows = results.map(function (job) {
+      var link = document.createElement('a');
+      link.href = job.job_url || '#';
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.className = 'btn btn--primary btn--sm';
+      link.textContent = 'View ↗';
+
+      var scoreBadge = document.createElement('span');
+      scoreBadge.style.cssText = 'background: var(--accent-blue); color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600;';
+      scoreBadge.textContent = job.search_score;
+
+      return [scoreBadge, job.title || '—', job.company || '—', job.location || '—', job.date_posted || '—', link];
+    });
+
+    resultsContainer.appendChild(UI.createDataTable(headers, rows));
+  }
+
+  function renderJobsTable(jobs) {
+    resultsContainer.innerHTML = '';
+    if (!jobs || jobs.length === 0) {
+      renderEmpty();
       return;
     }
-
-    renderJobsTable(jobs);
-    renderPagination(currentPage, totalPages);
+    var headers = ['Title', 'Company', 'Location', 'Source', 'Date', 'Link'];
+    var rows = jobs.map(function (job) {
+      var link = document.createElement('a');
+      link.href = job.job_url || '#';
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.className = 'btn btn--primary btn--sm';
+      link.textContent = 'View ↗';
+      return [job.title || '—', job.company || '—', job.location || '—', job.source_platform || '—', job.date_posted || '—', link];
+    });
+    resultsContainer.appendChild(UI.createDataTable(headers, rows));
   }
 
-  /**
-   * Render the jobs table.
-   */
-  function renderJobsTable(jobs) {
-    const headers = ['Title', 'Company', 'Location', 'Source', 'Date Posted', 'Fresh', 'Actions'];
+  function renderFacets(facets) {
+    facetsContainer.innerHTML = '';
+    facetsContainer.style.display = '';
 
-    const rows = jobs.map(function (job) {
-      // Fresh badge
-      var badge = UI.createFreshBadge(job.date_posted);
+    var groups = [
+      { title: 'Companies', items: facets.top_companies },
+      { title: 'Locations', items: facets.top_locations },
+      { title: 'Collections', items: facets.top_collections },
+    ];
 
-      // Actions container
-      var actionsDiv = document.createElement('div');
-      actionsDiv.style.display = 'flex';
-      actionsDiv.style.gap = 'var(--space-xs)';
+    groups.forEach(function (group) {
+      if (!group.items || group.items.length === 0) return;
 
-      // Apply button
-      var applyBtn = document.createElement('a');
-      applyBtn.href = job.job_url || '#';
-      applyBtn.target = '_blank';
-      applyBtn.rel = 'noopener noreferrer';
-      applyBtn.className = 'btn btn--primary btn--sm';
-      applyBtn.textContent = 'Apply ↗';
-      actionsDiv.appendChild(applyBtn);
+      var div = document.createElement('div');
+      div.className = 'facet-group';
+      div.innerHTML = '<div class="facet-group__title">' + group.title + '</div>';
 
-      // Save button
-      var saveBtn = document.createElement('button');
-      saveBtn.className = 'btn btn--secondary btn--sm';
-      saveBtn.textContent = 'Save';
-      saveBtn.addEventListener('click', function () {
-        handleSaveJob(job, saveBtn);
+      group.items.slice(0, 5).forEach(function (item) {
+        var el = document.createElement('div');
+        el.className = 'facet-item';
+        el.innerHTML = escapeHtml(item.name) + ' <span class="facet-item__count">(' + item.count + ')</span>';
+        el.addEventListener('click', function () {
+          searchInput.value = item.name;
+          doSearch(item.name, 1);
+        });
+        div.appendChild(el);
       });
-      actionsDiv.appendChild(saveBtn);
 
-      return [
-        job.title || '—',
-        job.company || '—',
-        job.location || 'Remote',
-        UI.createSourceBadge(job),
-        job.date_posted || '—',
-        badge,
-        actionsDiv,
-      ];
+      facetsContainer.appendChild(div);
     });
-
-    jobsTableContainer.innerHTML = '';
-    jobsTableContainer.appendChild(UI.createDataTable(headers, rows));
   }
 
-  /**
-   * Render pagination controls.
-   */
-  function renderPagination(page, totalPages) {
-    paginationContainer.innerHTML = '';
-    var pagination = UI.createPagination(page, totalPages, function (newPage) {
-      loadJobs(newPage);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    });
-    paginationContainer.appendChild(pagination);
-  }
-
-  /**
-   * Handle saving a job.
-   */
-  async function handleSaveJob(job, btn) {
-    btn.disabled = true;
-    btn.textContent = 'Saving...';
-
-    var jobData = {
-      job_url: job.job_url,
-      title: job.title,
-      company: job.company,
-      location: job.location || '',
-      source: job.source || '',
-      date_posted: job.date_posted || '',
-    };
-
-    var result = await API.saveJob(jobData);
-
-    if (result.ok) {
-      btn.textContent = '✓ Saved';
-      btn.className = 'btn btn--ghost btn--sm';
-      UI.showToast('Job saved successfully', 'success');
-    } else {
-      btn.disabled = false;
-      btn.textContent = 'Save';
-      if (result.status === 409 || (result.error && result.error.toLowerCase().includes('already'))) {
-        UI.showToast('Job already saved', 'info');
-        btn.textContent = '✓ Saved';
-        btn.className = 'btn btn--ghost btn--sm';
-      } else {
-        UI.showToast('Failed to save job', 'error');
-      }
-    }
-  }
-
-  /**
-   * Handle export button click (CSV or XLSX).
-   */
-  async function handleExport(format) {
-    var btn = format === 'csv' ? btnExportCsv : btnExportXlsx;
-    var originalText = btn.textContent;
-
-    // Disable both buttons and show loading
-    btnExportCsv.disabled = true;
-    btnExportXlsx.disabled = true;
-    btn.textContent = '⏳ Exporting...';
-
-    var filters = getFilters();
-    var result = format === 'csv'
-      ? await API.exportJobsCsv(filters)
-      : await API.exportJobsXlsx(filters);
-
-    // Re-enable buttons
-    btnExportCsv.disabled = false;
-    btnExportXlsx.disabled = false;
-    btn.textContent = originalText;
-
-    if (result.ok) {
-      // Trigger file download
-      var extension = format === 'csv' ? 'csv' : 'xlsx';
-      var filename = 'jobs_export_' + new Date().toISOString().split('T')[0] + '.' + extension;
-      var url = URL.createObjectURL(result.blob);
-      var a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      UI.showToast('Export downloaded successfully', 'success');
-    } else {
-      UI.showToast(result.error || 'Export failed', 'error');
-    }
+  function escapeHtml(str) {
+    if (!str) return '';
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
   }
 
   // Event listeners
-  btnApplyFilters.addEventListener('click', function () {
-    loadJobs(1);
+  searchBtn.addEventListener('click', function () {
+    doSearch(searchInput.value, 1);
   });
 
-  btnClearFilters.addEventListener('click', function () {
-    filterSource.value = '';
-    filterLocation.value = '';
-    filterCompany.value = '';
-    filterKeyword.value = '';
-    filterJobType.value = '';
-    filterDateFrom.value = '';
-    filterDateTo.value = '';
-    loadJobs(1);
+  searchInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      doSearch(searchInput.value, 1);
+    }
   });
 
-  btnExportCsv.addEventListener('click', function () { handleExport('csv'); });
-  btnExportXlsx.addEventListener('click', function () { handleExport('xlsx'); });
-
-  // Allow Enter key to trigger filter
-  [filterLocation, filterCompany, filterKeyword].forEach(function (input) {
-    input.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') {
-        loadJobs(1);
-      }
+  // Example links
+  document.querySelectorAll('.example-link').forEach(function (link) {
+    link.addEventListener('click', function () {
+      var q = link.getAttribute('data-q');
+      searchInput.value = q;
+      doSearch(q, 1);
     });
   });
 
-  // Initialize
-  function init() {
-    loadJobs(1);
-  }
+  // Export buttons
+  exportCsvBtn.addEventListener('click', async function () {
+    var result = await API.exportJobsCsv({});
+    if (result.ok) {
+      var url = URL.createObjectURL(result.blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'jobs.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  });
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+  exportXlsxBtn.addEventListener('click', async function () {
+    var result = await API.exportJobsXlsx({});
+    if (result.ok) {
+      var url = URL.createObjectURL(result.blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'jobs.xlsx';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  });
+
+  // Initial load — show all jobs
+  doSearch('', 1);
 })();

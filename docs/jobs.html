@@ -5,105 +5,180 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>JobCopilot — Jobs Feed</title>
   <link rel="stylesheet" href="css/style.css">
+  <style>
+    .search-hero {
+      margin-bottom: var(--space-xl);
+    }
+    .search-box {
+      display: flex;
+      gap: var(--space-sm);
+      margin-bottom: var(--space-sm);
+    }
+    .search-box__input {
+      flex: 1;
+      padding: var(--space-md) var(--space-lg);
+      font-size: var(--font-size-lg);
+      background: var(--bg-glass);
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-lg);
+      color: var(--text-primary);
+      outline: none;
+      transition: var(--transition-fast);
+    }
+    .search-box__input:focus {
+      border-color: var(--accent-blue);
+      box-shadow: var(--shadow-glow);
+    }
+    .search-box__input::placeholder {
+      color: var(--text-tertiary);
+    }
+    .search-box__btn {
+      padding: var(--space-md) var(--space-xl);
+      background: var(--accent-blue);
+      color: white;
+      border: none;
+      border-radius: var(--radius-lg);
+      font-size: var(--font-size-base);
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition-fast);
+    }
+    .search-box__btn:hover {
+      background: var(--accent-blue-hover);
+    }
+    .search-examples {
+      font-size: var(--font-size-sm);
+      color: var(--text-tertiary);
+    }
+    .search-examples a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .search-examples a:hover {
+      color: var(--accent-blue);
+    }
+    .quick-links {
+      display: flex;
+      gap: var(--space-sm);
+      margin-bottom: var(--space-lg);
+      flex-wrap: wrap;
+    }
+    .quick-link {
+      padding: var(--space-xs) var(--space-md);
+      border-radius: var(--radius-full);
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-glass);
+      color: var(--text-secondary);
+      font-size: var(--font-size-sm);
+      text-decoration: none;
+      transition: var(--transition-fast);
+    }
+    .quick-link:hover {
+      background: var(--bg-glass-hover);
+      color: var(--text-primary);
+      border-color: var(--accent-blue);
+    }
+    .facets {
+      display: flex;
+      gap: var(--space-lg);
+      margin-bottom: var(--space-lg);
+      flex-wrap: wrap;
+    }
+    .facet-group {
+      background: var(--bg-glass);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: var(--space-sm) var(--space-md);
+    }
+    .facet-group__title {
+      font-size: var(--font-size-xs);
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: var(--space-xs);
+    }
+    .facet-item {
+      font-size: var(--font-size-sm);
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: 2px 0;
+    }
+    .facet-item:hover {
+      color: var(--accent-blue);
+    }
+    .facet-item__count {
+      color: var(--text-tertiary);
+      font-size: var(--font-size-xs);
+    }
+    .search-meta {
+      font-size: var(--font-size-sm);
+      color: var(--text-tertiary);
+      margin-bottom: var(--space-md);
+    }
+  </style>
 </head>
 <body>
-  <!-- Navigation Bar -->
   <nav class="navbar" role="navigation" aria-label="Main navigation">
     <div class="navbar__brand">🚀 JobCopilot</div>
     <ul class="navbar__nav">
       <li><a href="index.html" class="navbar__link">Dashboard</a></li>
       <li><a href="jobs.html" class="navbar__link navbar__link--active" aria-current="page">Jobs</a></li>
+      <li><a href="internships.html" class="navbar__link">Internships</a></li>
+      <li><a href="analytics.html" class="navbar__link">Analytics</a></li>
+      <li><a href="career-radar.html" class="navbar__link">Career Radar</a></li>
       <li><a href="saved.html" class="navbar__link">Saved</a></li>
       <li><a href="watchlist.html" class="navbar__link">Watchlist</a></li>
       <li><a href="settings.html" class="navbar__link">Settings</a></li>
     </ul>
   </nav>
 
-  <!-- Main Content -->
   <main class="main-content">
     <header class="page-header">
-      <h1 class="page-header__title">Jobs Feed</h1>
-      <p class="page-header__subtitle">Browse and filter all scraped jobs</p>
+      <h1 class="page-header__title">Jobs</h1>
+      <p class="page-header__subtitle">Search across all scraped jobs</p>
     </header>
 
-    <!-- Filter Controls -->
-    <section class="card mb-lg" aria-label="Filters">
-      <div class="filter-row">
-        <div class="form-group">
-          <label class="form-label" for="filter-source">Source</label>
-          <select id="filter-source" class="form-input form-input--select">
-            <option value="">All Sources</option>
-            <option value="linkedin" data-filter="source_platform">LinkedIn Jobs</option>
-            <option value="indeed" data-filter="source_platform">Indeed Jobs</option>
-            <option value="naukri" data-filter="source_platform">Naukri Jobs</option>
-            <option value="google" data-filter="source_platform">Google Jobs</option>
-            <option value="ats" data-filter="source_platform">ATS Jobs</option>
-            <option value="workday" data-filter="source_platform">Workday Jobs</option>
-            <option value="greenhouse" data-filter="source_platform">Greenhouse Jobs</option>
-            <option value="lever" data-filter="source_platform">Lever Jobs</option>
-            <option value="ashby" data-filter="source_platform">Ashby Jobs</option>
-            <option value="successfactors" data-filter="source_platform">SuccessFactors Jobs</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="filter-location">Location</label>
-          <input type="text" id="filter-location" class="form-input" placeholder="e.g. Bangalore">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="filter-company">Company</label>
-          <input type="text" id="filter-company" class="form-input" placeholder="e.g. Google">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="filter-keyword">Keyword</label>
-          <input type="text" id="filter-keyword" class="form-input" placeholder="e.g. Python">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="filter-job-type">Job Type</label>
-          <select id="filter-job-type" class="form-input form-input--select">
-            <option value="">All Types</option>
-            <option value="full-time">Full-time</option>
-            <option value="part-time">Part-time</option>
-            <option value="internship">Internship</option>
-            <option value="contract">Contract</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="filter-date-from">From</label>
-          <input type="date" id="filter-date-from" class="form-input">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="filter-date-to">To</label>
-          <input type="date" id="filter-date-to" class="form-input">
-        </div>
-        <div class="form-group" style="justify-content: flex-end;">
-          <button id="btn-apply-filters" class="btn btn--primary">Apply Filters</button>
-        </div>
-        <div class="form-group" style="justify-content: flex-end;">
-          <button id="btn-clear-filters" class="btn btn--secondary">Clear</button>
-        </div>
-        <div class="form-group" style="justify-content: flex-end;">
-          <button id="btn-export-csv" class="btn btn--secondary btn--sm">📥 CSV</button>
-        </div>
-        <div class="form-group" style="justify-content: flex-end;">
-          <button id="btn-export-xlsx" class="btn btn--secondary btn--sm">📥 XLSX</button>
-        </div>
+    <!-- Universal Search Box -->
+    <section class="search-hero">
+      <div class="search-box">
+        <input type="text" id="search-input" class="search-box__input" placeholder="🔍 Search anything... Abbott, Bangalore, Research Associate, Python, Remote" autofocus>
+        <button id="search-btn" class="search-box__btn">Search</button>
+      </div>
+      <div class="search-examples">
+        Try: <a class="example-link" data-q="biomedical">Biomedical</a> · <a class="example-link" data-q="abbott">Abbott</a> · <a class="example-link" data-q="bangalore">Bangalore</a> · <a class="example-link" data-q="research associate">Research Associate</a> · <a class="example-link" data-q="python">Python</a> · <a class="example-link" data-q="remote">Remote</a> · <a class="example-link" data-q="medical device">Medical Device</a>
       </div>
     </section>
 
-    <!-- Jobs Table -->
-    <section aria-label="Jobs list">
-      <div id="jobs-table-container">
-        <div class="skeleton skeleton--row"></div>
-        <div class="skeleton skeleton--row"></div>
-        <div class="skeleton skeleton--row"></div>
+    <!-- Quick Access Links -->
+    <div class="quick-links">
+      <a href="career-radar.html" class="quick-link">🎯 Career Radar</a>
+      <a href="career-radar.html" class="quick-link" id="link-biomedical">🧬 Biomedical Profile</a>
+      <a href="career-radar.html" class="quick-link" id="link-research">🔬 Research Radar</a>
+      <a href="career-radar.html" class="quick-link" id="link-india">🇮🇳 India Feed</a>
+      <a href="career-radar.html" class="quick-link" id="link-action">📋 Action List</a>
+    </div>
+
+    <!-- Faceted Filters (auto-generated from results) -->
+    <div id="facets-container" class="facets" style="display: none;"></div>
+
+    <!-- Search Meta -->
+    <div id="search-meta" class="search-meta" style="display: none;"></div>
+
+    <!-- Results -->
+    <section aria-label="Search results">
+      <div id="results-container">
         <div class="skeleton skeleton--row"></div>
         <div class="skeleton skeleton--row"></div>
         <div class="skeleton skeleton--row"></div>
       </div>
     </section>
 
-    <!-- Pagination -->
-    <div id="pagination-container"></div>
+    <!-- Export buttons -->
+    <div style="margin-top: var(--space-lg); display: flex; gap: var(--space-sm);">
+      <button id="btn-export-csv" class="btn btn--secondary btn--sm">📥 CSV</button>
+      <button id="btn-export-xlsx" class="btn btn--secondary btn--sm">📥 XLSX</button>
+    </div>
   </main>
 
   <script src="js/api.js"></script>
