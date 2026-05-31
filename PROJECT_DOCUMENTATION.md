@@ -2706,7 +2706,7 @@ nano .env
 5. Get the connection string and add it to `.env`:
 
 ```env
-MONGODB_URI=mongodb+srv://youruser:yourpassword@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority
+MONGODB_URI=mongodb+srv://<username>:<password>@<cluster>.mongodb.net/?retryWrites=true&w=majority
 ```
 
 ### 11.5 Running the Backend
